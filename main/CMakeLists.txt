@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+       "main.c"
+       "wifi_connect.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        nvs_flash
+        spiffs
+        embed_claw
+)
