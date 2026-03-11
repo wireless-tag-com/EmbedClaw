@@ -269,14 +269,20 @@ static void extract_description(FILE *f, char *out, size_t out_size)
     while (fgets(line, sizeof(line), f) && off < out_size - 1) {
         size_t len = strlen(line);
 
+        if (len == 0) {
+            continue;
+        }
+
+        /* Skip blank lines between the title and the description body. */
+        if (off == 0 && line[0] == '\n') {
+            continue;
+        }
+
         /* Stop at blank line or section header */
         if (len == 0 || (len == 1 && line[0] == '\n') ||
             (len >= 2 && line[0] == '#' && line[1] == '#')) {
             break;
         }
-
-        /* Skip leading blank lines */
-        if (off == 0 && line[0] == '\n') continue;
 
         /* Trim trailing newline for concatenation */
         if (line[len - 1] == '\n') {

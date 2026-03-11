@@ -32,6 +32,7 @@
 #define TOOL_RESULT_MAX_FOR_LLM 4096
 
 #define EC_TOOL_OUTPUT_SIZE  (4 * 1024)
+#define EC_AGENT_PROMPT_SCRATCH_SIZE 4096
 
 #define AGENT_SYSTEM_PROMPT_STR \
         "You are EmbedClaw, a helpful and concise AI assistant running on an ESP32 device.\n"\
@@ -277,6 +278,8 @@ static size_t append_file(char *buf, size_t size, size_t offset, const char *pat
 
 static esp_err_t context_build_system_prompt(char *buf, size_t size)
 {
+    char *scratch = NULL;
+
     if (!buf || size == 0) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -293,35 +296,38 @@ static esp_err_t context_build_system_prompt(char *buf, size_t size)
     off = append_file(buf, size, off, EC_SOUL_FILE, "Personality");
     off = append_file(buf, size, off, EC_USER_FILE, "User Info");
 
-    /* Long-term memory */
-    char mem_buf[4096];
-    if (off < cap && ec_memory_read_long_term(mem_buf, sizeof(mem_buf)) == ESP_OK && mem_buf[0]) {
-        off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", mem_buf);
-        if (off > cap) {
-            off = cap;
+    scratch = calloc(1, EC_AGENT_PROMPT_SCRATCH_SIZE);
+    if (!scratch) {
+        ESP_LOGW(TAG, "Skipping optional prompt sections: out of memory");
+    } else {
+        if (off < cap && ec_memory_read_long_term(scratch, EC_AGENT_PROMPT_SCRATCH_SIZE) == ESP_OK && scratch[0]) {
+            off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", scratch);
+            if (off > cap) {
+                off = cap;
+            }
         }
-    }
 
-    /* Recent daily notes (last 3 days) */
-    char recent_buf[4096];
-    if (off < cap && ec_memory_read_recent(recent_buf, sizeof(recent_buf), 3) == ESP_OK && recent_buf[0]) {
-        off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
-        if (off > cap) {
-            off = cap;
+        scratch[0] = '\0';
+        if (off < cap && ec_memory_read_recent(scratch, EC_AGENT_PROMPT_SCRATCH_SIZE, 3) == ESP_OK && scratch[0]) {
+            off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", scratch);
+            if (off > cap) {
+                off = cap;
+            }
         }
-    }
 
-    /* Skills */
-    char skills_buf[2048];
-    size_t skills_len = ec_skill_loader_build_summary(skills_buf, sizeof(skills_buf));
-    if (off < cap && skills_len > 0) {
-        off += snprintf(buf + off, size - off,
-                        "\n## Available Skills\n\n"
-                        "Available skills (use read_file to load full instructions):\n%s\n",
-                        skills_buf);
-        if (off > cap) {
-            off = cap;
+        scratch[0] = '\0';
+        size_t skills_len = ec_skill_loader_build_summary(scratch, EC_AGENT_PROMPT_SCRATCH_SIZE);
+        if (off < cap && skills_len > 0) {
+            off += snprintf(buf + off, size - off,
+                            "\n## Available Skills\n\n"
+                            "Available skills (use read_file to load full instructions):\n%s\n",
+                            scratch);
+            if (off > cap) {
+                off = cap;
+            }
         }
+
+        free(scratch);
     }
 
     if (off >= size) {
