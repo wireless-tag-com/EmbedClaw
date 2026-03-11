@@ -31,6 +31,8 @@
 /* ==================== [Static Prototypes] ================================= */
 
 static bool validate_path(const char *path);
+static esp_err_t replace_first_occurrence(const char *source, const char *old_str,
+                                          const char *new_str, char *output, size_t output_size);
 
 static esp_err_t ec_tool_read_file_execute(const char *input_json, char *output, size_t output_size);
 static esp_err_t ec_tool_write_file_execute(const char *input_json, char *output, size_t output_size);
@@ -238,12 +240,8 @@ static esp_err_t ec_tool_edit_file_execute(const char *input_json, char *output,
         return ESP_ERR_INVALID_SIZE;
     }
 
-    /* Allocate buffer for the result (old content + possible expansion) */
-    size_t old_len = strlen(old_str);
-    size_t new_len = strlen(new_str);
-    size_t max_result = file_size + (new_len > old_len ? new_len - old_len : 0) + 1;
     char *buf = malloc(file_size + 1);
-    char *result = malloc(max_result);
+    char *result = malloc((size_t)file_size + strlen(new_str) + 1);
     if (!buf || !result) {
         free(buf);
         free(result);
@@ -257,26 +255,14 @@ static esp_err_t ec_tool_edit_file_execute(const char *input_json, char *output,
     buf[n] = '\0';
     fclose(f);
 
-    /* Find and replace first occurrence */
-    char *pos = strstr(buf, old_str);
-    if (!pos) {
+    esp_err_t replace_err = replace_first_occurrence(buf, old_str, new_str, result, (size_t)file_size + strlen(new_str) + 1);
+    free(buf);
+    if (replace_err != ESP_OK) {
         snprintf(output, output_size, "Error: old_string not found in %s", path);
-        free(buf);
         free(result);
         cJSON_Delete(root);
-        return ESP_ERR_NOT_FOUND;
+        return replace_err;
     }
-
-    size_t prefix_len = pos - buf;
-    memcpy(result, buf, prefix_len);
-    memcpy(result + prefix_len, new_str, new_len);
-    size_t suffix_start = prefix_len + old_len;
-    size_t suffix_len = n - suffix_start;
-    memcpy(result + prefix_len + new_len, buf + suffix_start, suffix_len);
-    size_t total = prefix_len + new_len + suffix_len;
-    result[total] = '\0';
-
-    free(buf);
 
     /* Write back */
     f = fopen(path, "w");
@@ -287,11 +273,13 @@ static esp_err_t ec_tool_edit_file_execute(const char *input_json, char *output,
         return ESP_FAIL;
     }
 
+    size_t total = strlen(result);
     fwrite(result, 1, total, f);
     fclose(f);
     free(result);
 
-    snprintf(output, output_size, "OK: edited %s (replaced %d bytes with %d bytes)", path, (int)old_len, (int)new_len);
+    snprintf(output, output_size, "OK: edited %s (replaced %d bytes with %d bytes)",
+             path, (int)strlen(old_str), (int)strlen(new_str));
     ESP_LOGI(TAG, "edit_file: %s", path);
     cJSON_Delete(root);
     return ESP_OK;
@@ -364,3 +352,39 @@ static bool validate_path(const char *path)
     return true;
 }
 
+static esp_err_t replace_first_occurrence(const char *source, const char *old_str,
+                                          const char *new_str, char *output, size_t output_size)
+{
+    const char *pos;
+    size_t prefix_len;
+    size_t old_len;
+    size_t new_len;
+    size_t suffix_len;
+    size_t total_len;
+
+    if (!source || !old_str || !new_str || !output || output_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    pos = strstr(source, old_str);
+    if (!pos) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    prefix_len = (size_t)(pos - source);
+    old_len = strlen(old_str);
+    new_len = strlen(new_str);
+    suffix_len = strlen(pos + old_len);
+    total_len = prefix_len + new_len + suffix_len;
+
+    if (total_len + 1 > output_size) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(output, source, prefix_len);
+    memcpy(output + prefix_len, new_str, new_len);
+    memcpy(output + prefix_len + new_len, pos + old_len, suffix_len);
+    output[total_len] = '\0';
+
+    return ESP_OK;
+}

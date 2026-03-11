@@ -14,6 +14,7 @@
 #include "ec_tools.h"
 #include "esp_log.h"
 #include "cJSON.h"
+#include <string.h>
 
 /* ==================== [Defines] =========================================== */
 
@@ -65,6 +66,9 @@ esp_err_t ec_tools_execute(const char *name, const char *input_json,
                            char *output, size_t output_size)
 {
     for (size_t i = 0; i < _EC_TOOLS_ENMU_MAX; i++) {
+        if (!s_tools[i]) {
+            continue;
+        }
         if (s_tools[i]->name == name) {
             ESP_LOGI(TAG, "Executing tool: %s", name);
             return s_tools[i]->execute(input_json, output, output_size);
@@ -72,6 +76,9 @@ esp_err_t ec_tools_execute(const char *name, const char *input_json,
     }
 
     for (size_t i = 0; i < _EC_TOOLS_ENMU_MAX; i++) {
+        if (!s_tools[i]) {
+            continue;
+        }
         if (strcmp(s_tools[i]->name, name) == 0) {
             ESP_LOGI(TAG, "Executing tool: %s", name);
             return s_tools[i]->execute(input_json, output, output_size);
@@ -116,4 +123,3 @@ static void build_tools_json(void)
     cJSON_Delete(arr);
 
 }
-
