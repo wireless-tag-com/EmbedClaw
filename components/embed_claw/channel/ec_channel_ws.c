@@ -39,6 +39,8 @@ static ws_client_t *find_client_by_chat_id(const char *chat_id);
 static ws_client_t *add_client(int fd);
 static void remove_client(int fd);
 static esp_err_t ws_handler(httpd_req_t *req);
+static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *msg);
+static char *ws_build_response_json_alloc(const ec_msg_t *msg);
 
 static esp_err_t ec_channel_ws_start(void);
 static esp_err_t ec_channel_ws_send(const ec_msg_t *msg);
@@ -146,58 +148,20 @@ static esp_err_t ws_handler(httpd_req_t *req)
     }
 
     int fd = httpd_req_to_sockfd(req);
-    ws_client_t *client = find_client_by_fd(fd);
-
-    /* Parse JSON message */
-    cJSON *root = cJSON_Parse((char *)ws_pkt.payload);
+    ec_msg_t msg = {0};
+    esp_err_t decode_err = ws_decode_message(fd, (char *)ws_pkt.payload, &msg);
     free(ws_pkt.payload);
 
-    if (!root) {
+    if (decode_err == ESP_OK) {
+        esp_err_t push_err = ec_agent_inbound(&msg);
+        if (push_err != ESP_OK) {
+            ESP_LOGW(TAG, "Inbound queue full, drop ws message");
+            free(msg.content);
+        }
+    } else if (decode_err == ESP_ERR_INVALID_ARG) {
         ESP_LOGW(TAG, "Invalid JSON from fd=%d", fd);
-        return ESP_OK;
     }
 
-    cJSON *type = cJSON_GetObjectItem(root, "type");
-    cJSON *content = cJSON_GetObjectItem(root, "content");
-
-    if (type && cJSON_IsString(type) && strcmp(type->valuestring, "message") == 0
-        && content && cJSON_IsString(content)) {
-
-        /* Optional channel: "feishu" = from Feishu long-connection relay (no public IP) */
-        cJSON *chan = cJSON_GetObjectItem(root, "channel");
-        bool is_feishu = (chan && cJSON_IsString(chan) && strcmp(chan->valuestring, "feishu") == 0);
-
-        const char *chat_id = client ? client->chat_id : "ws_unknown";
-        cJSON *cid = cJSON_GetObjectItem(root, "chat_id");
-        if (cid && cJSON_IsString(cid)) {
-            chat_id = cid->valuestring;
-            if (client) {
-                strncpy(client->chat_id, chat_id, sizeof(client->chat_id) - 1);
-            }
-        }
-        if (is_feishu && (!cid || !cJSON_IsString(cid))) {
-            ESP_LOGW(TAG, "Feishu relay message missing chat_id (open_id:xxx or chat_id:xxx)");
-            cJSON_Delete(root);
-            return ESP_OK;
-        }
-
-        ESP_LOGI(TAG, "WS message from %s (%s): %.40s...",
-                 chat_id, is_feishu ? "feishu" : "ws", content->valuestring);
-        // 将消息推送到消息总线，供Agent Loop处理
-        ec_msg_t msg = {0};
-        strncpy(msg.channel, is_feishu ? EC_CHAN_FEISHU : EC_CHAN_WEBSOCKET, sizeof(msg.channel) - 1);
-        strncpy(msg.chat_id, chat_id, sizeof(msg.chat_id) - 1);
-        msg.content = strdup(content->valuestring);
-        if (msg.content) {
-            esp_err_t push_err = ec_agent_inbound(&msg);
-            if (push_err != ESP_OK) {
-                ESP_LOGW(TAG, "Inbound queue full, drop ws message");
-                free(msg.content);
-            }
-        }
-    }
-
-    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -239,15 +203,7 @@ static esp_err_t ec_channel_ws_send(const ec_msg_t *msg)
         return ESP_ERR_NOT_FOUND;
     }
 
-    /* Build response JSON */
-    cJSON *resp = cJSON_CreateObject();
-    cJSON_AddStringToObject(resp, "type", "response");
-    cJSON_AddStringToObject(resp, "content", msg->content);
-    cJSON_AddStringToObject(resp, "chat_id", msg->chat_id);
-
-    char *json_str = cJSON_PrintUnformatted(resp);
-    cJSON_Delete(resp);
-
+    char *json_str = ws_build_response_json_alloc(msg);
     if (!json_str) return ESP_ERR_NO_MEM;
 
     httpd_ws_frame_t ws_pkt = {
@@ -267,4 +223,89 @@ static esp_err_t ec_channel_ws_send(const ec_msg_t *msg)
     }
 
     return ret;
+}
+
+static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *msg)
+{
+    ws_client_t *client;
+    cJSON *root;
+    cJSON *type;
+    cJSON *content;
+    cJSON *chan;
+    cJSON *cid;
+    bool is_feishu;
+    const char *chat_id;
+
+    if (!payload_json || !msg) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    root = cJSON_Parse(payload_json);
+    if (!root) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    type = cJSON_GetObjectItem(root, "type");
+    content = cJSON_GetObjectItem(root, "content");
+    if (!type || !cJSON_IsString(type) || strcmp(type->valuestring, "message") != 0 ||
+        !content || !cJSON_IsString(content)) {
+        cJSON_Delete(root);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    client = find_client_by_fd(fd);
+    chan = cJSON_GetObjectItem(root, "channel");
+    is_feishu = (chan && cJSON_IsString(chan) && strcmp(chan->valuestring, "feishu") == 0);
+
+    chat_id = client ? client->chat_id : "ws_unknown";
+    cid = cJSON_GetObjectItem(root, "chat_id");
+    if (cid && cJSON_IsString(cid)) {
+        chat_id = cid->valuestring;
+        if (client) {
+            strncpy(client->chat_id, chat_id, sizeof(client->chat_id) - 1);
+        }
+    }
+
+    if (is_feishu && (!cid || !cJSON_IsString(cid))) {
+        cJSON_Delete(root);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "WS message from %s (%s): %.40s...",
+             chat_id, is_feishu ? "feishu" : "ws", content->valuestring);
+
+    memset(msg, 0, sizeof(*msg));
+    strncpy(msg->channel, is_feishu ? EC_CHAN_FEISHU : EC_CHAN_WEBSOCKET, sizeof(msg->channel) - 1);
+    strncpy(msg->chat_id, chat_id, sizeof(msg->chat_id) - 1);
+    msg->content = strdup(content->valuestring);
+    cJSON_Delete(root);
+
+    if (!msg->content) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    return ESP_OK;
+}
+
+static char *ws_build_response_json_alloc(const ec_msg_t *msg)
+{
+    cJSON *resp;
+    char *json_str;
+
+    if (!msg || !msg->content) {
+        return NULL;
+    }
+
+    resp = cJSON_CreateObject();
+    if (!resp) {
+        return NULL;
+    }
+
+    cJSON_AddStringToObject(resp, "type", "response");
+    cJSON_AddStringToObject(resp, "content", msg->content);
+    cJSON_AddStringToObject(resp, "chat_id", msg->chat_id);
+
+    json_str = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    return json_str;
 }

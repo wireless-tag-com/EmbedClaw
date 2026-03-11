@@ -88,6 +88,7 @@ static bool ensure_token(void);
 static bool feishu_network_ready(void);
 static bool fetch_ws_endpoint(void);
 static int parse_varint(const uint8_t *buf, size_t len, size_t *consumed);
+static size_t encoded_varint_size(uint64_t value);
 static bool parse_feishu_frame(const uint8_t *buf, size_t len, feishu_frame_t *f);
 static int encode_response_frame(uint8_t *out, size_t out_max, const feishu_frame_t *f);
 static int encode_ping_frame(uint8_t *out, size_t out_max, int32_t service_id);
@@ -473,6 +474,18 @@ static int parse_varint(const uint8_t *buf, size_t len, size_t *consumed)
     return -1;
 }
 
+static size_t encoded_varint_size(uint64_t value)
+{
+    size_t size = 1;
+
+    while (value >= 0x80) {
+        value >>= 7;
+        size++;
+    }
+
+    return size;
+}
+
 static bool parse_feishu_frame(const uint8_t *buf, size_t len, feishu_frame_t *f)
 {
     memset(f, 0, sizeof(*f));
@@ -590,12 +603,16 @@ static bool parse_feishu_frame(const uint8_t *buf, size_t len, feishu_frame_t *f
 static int encode_response_frame(uint8_t *out, size_t out_max, const feishu_frame_t *f)
 {
     const char *resp_json = "{\"code\":200}";
+    const char *biz_rt_key = "biz_rt";
     size_t resp_len = strlen(resp_json);
+    size_t biz_rt_key_len = strlen(biz_rt_key);
     size_t off = 0;
     int rt = (int)(esp_timer_get_time() / 1000);
     char rt_str[12];
     int rt_len = snprintf(rt_str, sizeof(rt_str), "%d", rt);
-    size_t biz_rt_header_len = (size_t)(2 + 1 + 6 + 2 + 1 + rt_len + rt_len);
+    size_t biz_rt_value_len = (size_t)rt_len;
+    size_t biz_rt_header_len = 1 + encoded_varint_size(biz_rt_key_len) + biz_rt_key_len +
+                               1 + encoded_varint_size(biz_rt_value_len) + biz_rt_value_len;
     size_t total_header_len = f->header_blob_len + biz_rt_header_len;
 
     W_VARINT(out, out_max, off, 1 << 3 | 0); W_VARINT(out, out_max, off, f->seq_id);
@@ -608,10 +625,10 @@ static int encode_response_frame(uint8_t *out, size_t out_max, const feishu_fram
     }
     memcpy(out + off, f->header_blob, f->header_blob_len);
     off += f->header_blob_len;
-    out[off++] = 0x0a; W_VARINT(out, out_max, off, 6);
-    memcpy(out + off, "biz_rt", 6); off += 6;
-    out[off++] = 0x12; W_VARINT(out, out_max, off, rt_len);
-    memcpy(out + off, rt_str, (size_t)rt_len); off += rt_len;
+    out[off++] = 0x0a; W_VARINT(out, out_max, off, biz_rt_key_len);
+    memcpy(out + off, biz_rt_key, biz_rt_key_len); off += biz_rt_key_len;
+    out[off++] = 0x12; W_VARINT(out, out_max, off, biz_rt_value_len);
+    memcpy(out + off, rt_str, biz_rt_value_len); off += biz_rt_value_len;
     W_VARINT(out, out_max, off, 8 << 3 | 2); W_VARINT(out, out_max, off, resp_len);
     if (off + resp_len > out_max) {
         return -1;
@@ -627,16 +644,22 @@ static int encode_ping_frame(uint8_t *out, size_t out_max, int32_t service_id)
     size_t off = 0;
     const char *type_key = "type";
     const char *ping_val = "ping";
+    size_t type_key_len = strlen(type_key);
+    size_t ping_val_len = strlen(ping_val);
+    size_t header_len = 1 + encoded_varint_size(type_key_len) + type_key_len +
+                        1 + encoded_varint_size(ping_val_len) + ping_val_len;
     W_VARINT(out, out_max, off, 1 << 3 | 0); W_VARINT(out, out_max, off, 0);
     W_VARINT(out, out_max, off, 2 << 3 | 0); W_VARINT(out, out_max, off, 0);
     W_VARINT(out, out_max, off, 3 << 3 | 0); W_VARINT(out, out_max, off, (uint64_t)service_id);
     W_VARINT(out, out_max, off, 4 << 3 | 0); W_VARINT(out, out_max, off, 0);
-    W_VARINT(out, out_max, off, 5 << 3 | 2); W_VARINT(out, out_max, off, 14);
-    if (off + 14 > out_max) {
+    W_VARINT(out, out_max, off, 5 << 3 | 2); W_VARINT(out, out_max, off, header_len);
+    if (off + header_len > out_max) {
         return -1;
     }
-    out[off++] = 0x0a; out[off++] = 4; memcpy(out + off, type_key, 4); off += 4;
-    out[off++] = 0x12; out[off++] = 4; memcpy(out + off, ping_val, 4); off += 4;
+    out[off++] = 0x0a; W_VARINT(out, out_max, off, type_key_len);
+    memcpy(out + off, type_key, type_key_len); off += type_key_len;
+    out[off++] = 0x12; W_VARINT(out, out_max, off, ping_val_len);
+    memcpy(out + off, ping_val, ping_val_len); off += ping_val_len;
     return (int)off;
 }
 
@@ -1135,7 +1158,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
             cJSON_Delete(root);
         }
     }
+
     free(resp.buf);
     return ret;
-    
 }
