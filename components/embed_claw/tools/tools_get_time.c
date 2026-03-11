@@ -33,6 +33,7 @@
 /* ==================== [Static Prototypes] ================================= */
 
 static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, size_t output_size);
+bool ec_tools_get_time_format_epoch_for_test(time_t epoch, char *out, size_t out_size);
 
 /* ==================== [Static Variables] ================================== */
 
@@ -83,28 +84,13 @@ static esp_err_t fetch_time_via_ntp(char *out, size_t out_size)
         return err;
     }
 
-    setenv("TZ", EC_TIMEZONE, 1);
-    tzset();
-    time_t now = time(NULL);
-    struct tm local;
-    if (localtime_r(&now, &local) == NULL) return ESP_FAIL;
-    if (local.tm_year + 1900 < 2020) return ESP_FAIL;
-    strftime(out, out_size, "%Y-%m-%d %H:%M:%S %Z (%A)", &local);
-    return ESP_OK;
+    return ec_tools_get_time_format_epoch_for_test(time(NULL), out, out_size) ? ESP_OK : ESP_FAIL;
 }
 
 /* Format current system time (e.g. after NTP sync at boot). Return true if time looks valid. */
 static bool format_system_time(char *out, size_t out_size)
 {
-    setenv("TZ", EC_TIMEZONE, 1);
-    tzset();
-    time_t now = time(NULL);
-    struct tm local;
-    if (localtime_r(&now, &local) == NULL) return false;
-    /* Reject if not set (e.g. still 1970) */
-    if (local.tm_year + 1900 < 2020) return false;
-    strftime(out, out_size, "%Y-%m-%d %H:%M:%S %Z (%A)", &local);
-    return true;
+    return ec_tools_get_time_format_epoch_for_test(time(NULL), out, out_size);
 }
 
 static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, size_t output_size)
@@ -127,4 +113,27 @@ static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, 
     snprintf(output, output_size, "Error: failed to fetch time (%s)", esp_err_to_name(err));
     ESP_LOGE(TAG, "%s", output);
     return err;
+}
+
+bool ec_tools_get_time_format_epoch_for_test(time_t epoch, char *out, size_t out_size)
+{
+    struct tm local;
+
+    if (!out || out_size == 0) {
+        return false;
+    }
+
+    setenv("TZ", EC_TIMEZONE, 1);
+    tzset();
+
+    if (localtime_r(&epoch, &local) == NULL) {
+        return false;
+    }
+
+    if (local.tm_year + 1900 < 2020) {
+        return false;
+    }
+
+    strftime(out, out_size, "%Y-%m-%d %H:%M:%S %Z (%A)", &local);
+    return true;
 }
