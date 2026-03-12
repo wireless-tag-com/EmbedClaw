@@ -30,5 +30,6 @@
 
 ## Other
 
+- [x] test and ci/cd
 - [ ] Support more filesystems (beyond SPIFFS)
 - [ ] SD card support
