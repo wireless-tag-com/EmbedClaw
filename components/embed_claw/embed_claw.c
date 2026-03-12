@@ -36,7 +36,7 @@
 /* ==================== [Static Prototypes] ================================= */
 
 static void outbound_dispatch_task(void *arg);
-static esp_err_t start_configured_channels(void);
+static esp_err_t start_channels(void);
 
 /* ==================== [Static Variables] ================================== */
 
@@ -59,7 +59,7 @@ esp_err_t ec_embed_claw_start(void)
     ESP_ERROR_CHECK(ec_tools_register_all());
     ESP_ERROR_CHECK(ec_llm_init(LLM_TYPE_OPENAI, &s_llm_provider_ctx));
     ESP_ERROR_CHECK(ec_agent_start());
-    ESP_ERROR_CHECK(start_configured_channels());
+    ESP_ERROR_CHECK(start_channels());
 
     BaseType_t task_ok = xTaskCreate(
                              outbound_dispatch_task,
@@ -80,7 +80,7 @@ esp_err_t ec_embed_claw_start(void)
 
 /* ==================== [Static Functions] ================================== */
 
-static esp_err_t start_configured_channels(void)
+static esp_err_t start_channels(void)
 {
 #if EC_FEISHU_ENABLE
     ESP_RETURN_ON_ERROR(ec_channel_start(EC_CHAN_FEISHU), TAG, "start feishu failed");

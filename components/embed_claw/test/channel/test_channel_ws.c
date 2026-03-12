@@ -22,7 +22,7 @@ TEST_CASE("ws channel parses websocket user payloads", "[embed_claw][channel][ws
     free(msg.content);
 }
 
-TEST_CASE("ws channel parses feishu relay payloads and validates chat id", "[embed_claw][channel][ws]")
+TEST_CASE("ws channel parses external relay payloads and validates chat id", "[embed_claw][channel][ws]")
 {
     ec_msg_t msg = {0};
 
@@ -39,10 +39,29 @@ TEST_CASE("ws channel parses feishu relay payloads and validates chat id", "[emb
     TEST_ASSERT_EQUAL_STRING("nihao", msg.content);
     free(msg.content);
 
+    memset(&msg, 0, sizeof(msg));
+    TEST_ASSERT_EQUAL(ESP_OK,
+                      ec_channel_ws_parse_payload_for_test(
+                          7,
+                          "{\"type\":\"message\",\"channel\":\"qq\","
+                          "\"chat_id\":\"group:GROUP123\",\"content\":\"relay\"}",
+                          &msg));
+    TEST_ASSERT_EQUAL_STRING("qq", msg.channel);
+    TEST_ASSERT_EQUAL_STRING("group:GROUP123", msg.chat_id);
+    TEST_ASSERT_EQUAL_STRING("relay", msg.content);
+    free(msg.content);
+
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
                       ec_channel_ws_parse_payload_for_test(
                           7,
                           "{\"type\":\"message\",\"channel\":\"feishu\",\"content\":\"nihao\"}",
+                          &msg));
+
+    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
+                      ec_channel_ws_parse_payload_for_test(
+                          7,
+                          "{\"type\":\"message\",\"channel\":\"qq\","
+                          "\"chat_id\":\"qq_group:123\",\"content\":\"relay\"}",
                           &msg));
 }
 

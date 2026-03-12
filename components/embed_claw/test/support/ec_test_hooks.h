@@ -30,6 +30,15 @@ void ec_channel_ws_add_client_for_test(int fd, const char *chat_id);
 void ec_channel_ws_reset_state_for_test(void);
 esp_err_t ec_channel_ws_build_response_json_for_test(const ec_msg_t *msg, char *output, size_t output_size);
 
+esp_err_t ec_channel_qq_parse_event_for_test(const char *payload_json, ec_msg_t *msg);
+esp_err_t ec_channel_qq_build_request_for_test(const ec_msg_t *msg,
+                                               char *path, size_t path_size,
+                                               char *body, size_t body_size);
+bool ec_channel_qq_parse_chat_id_for_test(const char *chat_id,
+                                          char *kind, size_t kind_size,
+                                          char *id_buf, size_t id_buf_size);
+void ec_channel_qq_reset_state_for_test(void);
+
 void ec_channel_feishu_parse_chat_id_for_test(const char *chat_id, char *out_type, size_t type_len,
                                               char *out_id, size_t id_len);
 bool ec_channel_feishu_parse_frame_for_test(const uint8_t *buf, size_t len,
