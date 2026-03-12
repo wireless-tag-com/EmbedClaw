@@ -35,7 +35,6 @@ TEST_CASE("channel registry dispatches to registered driver", "[embed_claw][chan
 {
     char hello[] = "hello";
 
-    ec_channel_reset_for_test();
     s_fake_start_calls = 0;
     s_fake_send_calls = 0;
     s_last_content = NULL;
@@ -56,8 +55,6 @@ TEST_CASE("channel registry dispatches to registered driver", "[embed_claw][chan
 TEST_CASE("channel registry reports unknown driver", "[embed_claw][channel][contract]")
 {
     char hello[] = "hello";
-
-    ec_channel_reset_for_test();
 
     ec_msg_t msg = {0};
     strncpy(msg.channel, "missing_channel", sizeof(msg.channel) - 1);

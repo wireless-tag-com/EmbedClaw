@@ -33,7 +33,7 @@
 /* ==================== [Static Prototypes] ================================= */
 
 static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, size_t output_size);
-bool ec_tools_get_time_format_epoch_for_test(time_t epoch, char *out, size_t out_size);
+static bool format_epoch(time_t epoch, char *out, size_t out_size);
 
 /* ==================== [Static Variables] ================================== */
 
@@ -84,13 +84,13 @@ static esp_err_t fetch_time_via_ntp(char *out, size_t out_size)
         return err;
     }
 
-    return ec_tools_get_time_format_epoch_for_test(time(NULL), out, out_size) ? ESP_OK : ESP_FAIL;
+    return format_epoch(time(NULL), out, out_size) ? ESP_OK : ESP_FAIL;
 }
 
 /* Format current system time (e.g. after NTP sync at boot). Return true if time looks valid. */
 static bool format_system_time(char *out, size_t out_size)
 {
-    return ec_tools_get_time_format_epoch_for_test(time(NULL), out, out_size);
+    return format_epoch(time(NULL), out, out_size);
 }
 
 static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, size_t output_size)
@@ -115,7 +115,7 @@ static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, 
     return err;
 }
 
-bool ec_tools_get_time_format_epoch_for_test(time_t epoch, char *out, size_t out_size)
+static bool format_epoch(time_t epoch, char *out, size_t out_size)
 {
     struct tm local;
 

@@ -95,9 +95,8 @@ const char *ec_tools_get_json(void)
     return s_tools_json;
 }
 
-void ec_tools_reset_for_test(void)
+void ec_tools_free_json(void)
 {
-    memset(s_tools, 0, sizeof(s_tools));
     cJSON_free(s_tools_json);
     s_tools_json = NULL;
 }

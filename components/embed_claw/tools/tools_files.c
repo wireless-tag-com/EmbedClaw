@@ -113,8 +113,6 @@ esp_err_t ec_tools_list_dir(void)
     ec_tools_register(&s_list_dir);
     return ESP_OK;
 }
-
-
 /* ==================== [Static Functions] ================================== */
 
 static esp_err_t ec_tool_read_file_execute(const char *input_json, char *output, size_t output_size)
@@ -387,15 +385,4 @@ static esp_err_t replace_first_occurrence(const char *source, const char *old_st
     output[total_len] = '\0';
 
     return ESP_OK;
-}
-
-bool ec_tools_files_validate_path_for_test(const char *path)
-{
-    return validate_path(path);
-}
-
-esp_err_t ec_tools_files_replace_first_for_test(const char *source, const char *old_str,
-                                                const char *new_str, char *output, size_t output_size)
-{
-    return replace_first_occurrence(source, old_str, new_str, output, output_size);
 }

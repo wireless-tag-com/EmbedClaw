@@ -9,8 +9,6 @@
 
 TEST_CASE("llm layer rejects invalid setup and uninitialized use", "[embed_claw][llm][contract]")
 {
-    ec_llm_reset_for_test();
-
     cJSON *messages = cJSON_CreateArray();
     ec_llm_response_t resp = {0};
 

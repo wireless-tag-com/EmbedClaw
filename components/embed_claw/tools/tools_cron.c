@@ -616,11 +616,3 @@ void ec_tools_cron_configure_for_test(bool skip_task_start, bool skip_persist)
     s_skip_persist_for_test = skip_persist;
 }
 
-void ec_tools_cron_reset_for_test(void)
-{
-    memset(s_jobs, 0, sizeof(s_jobs));
-    s_job_count = 0;
-    s_cron_service_started = false;
-    s_skip_task_start_for_test = false;
-    s_skip_persist_for_test = false;
-}

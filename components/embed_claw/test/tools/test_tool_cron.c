@@ -2,6 +2,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "memory_checks.h"
 #include "unity.h"
 
 #include "core/ec_tools.h"
@@ -9,16 +10,17 @@
 
 static void register_tools_for_cron_tests(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
     ec_tools_cron_configure_for_test(true, true);
     TEST_ASSERT_EQUAL(ESP_OK, ec_tools_register_all());
+    test_utils_record_free_mem();
 }
 
 static void cleanup_tools_after_test(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
 }
 
 static void extract_job_id(const char *text, char *job_id, size_t job_id_size)

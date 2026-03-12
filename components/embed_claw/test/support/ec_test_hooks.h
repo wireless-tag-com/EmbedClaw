@@ -15,9 +15,6 @@
 extern "C" {
 #endif
 
-void ec_channel_reset_for_test(void);
-void ec_tools_reset_for_test(void);
-void ec_llm_reset_for_test(void);
 esp_err_t ec_test_spiffs_mount(void);
 void ec_test_spiffs_unmount(void);
 
@@ -27,7 +24,6 @@ bool ec_tools_files_validate_path_for_test(const char *path);
 esp_err_t ec_tools_files_replace_first_for_test(const char *source, const char *old_str,
                                                 const char *new_str, char *output, size_t output_size);
 void ec_tools_cron_configure_for_test(bool skip_task_start, bool skip_persist);
-void ec_tools_cron_reset_for_test(void);
 
 esp_err_t ec_channel_ws_parse_payload_for_test(int fd, const char *payload_json, ec_msg_t *msg);
 void ec_channel_ws_add_client_for_test(int fd, const char *chat_id);

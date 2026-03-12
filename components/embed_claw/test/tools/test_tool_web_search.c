@@ -7,16 +7,15 @@
 
 static void register_tools_for_tool_tests(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
     ec_tools_cron_configure_for_test(true, true);
     TEST_ASSERT_EQUAL(ESP_OK, ec_tools_register_all());
 }
 
 static void cleanup_tools_after_test(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
 }
 
 TEST_CASE("web search tool rejects invalid json and missing query", "[embed_claw][tools][web_search]")

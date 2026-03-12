@@ -120,11 +120,6 @@ esp_err_t ec_channel_send(const ec_msg_t *msg)
     return driver->vtable.send(msg);
 }
 
-void ec_channel_reset_for_test(void)
-{
-    memset(s_channel, 0, sizeof(s_channel));
-}
-
 /* ==================== [Static Functions] ================================== */
 
 static bool channel_names_equal(const char *lhs, const char *rhs)

@@ -370,7 +370,7 @@ static void append_turn_context_prompt(char *prompt, size_t size, const ec_msg_t
 static void agent_loop_task(void *arg)
 {
     esp_err_t err = ESP_OK;
-    bool sent_working_status = false;
+    
     char *final_text = NULL; // 存储最终文本回复，用于发送给用户
     char *system_prompt = (char *)malloc(EC_CONTEXT_BUF_SIZE + EC_LLM_STREAM_BUF_SIZE + EC_TOOL_OUTPUT_SIZE);
     if (!system_prompt) {
@@ -389,6 +389,7 @@ static void agent_loop_task(void *arg)
         // 获取入站消息，统一进行处理
         // 该消息来源于ws、飞书等适配器，或者系统适配器（定时任务触发等）
         ec_msg_t msg = {0};
+        volatile bool sent_working_status = false;
         
         if (xQueueReceive(s_inbound_queue, &msg, UINT32_MAX) != pdTRUE) {
             continue;
@@ -513,28 +514,4 @@ static void agent_loop_task(void *arg)
 #endif
     }
 
-}
-
-char *ec_agent_patch_tool_input_with_context_for_test(const char *tool_name, const char *input_json,
-                                                      const ec_msg_t *msg)
-{
-    ec_llm_tool_call_t call = {0};
-
-    if (tool_name) {
-        strncpy(call.name, tool_name, sizeof(call.name) - 1);
-    }
-    call.input = (char *)(input_json ? input_json : "{}");
-    call.input_len = input_json ? strlen(input_json) : 2;
-
-    return patch_tool_input_with_context(&call, msg);
-}
-
-esp_err_t ec_agent_build_system_prompt_for_test(char *buf, size_t size)
-{
-    return context_build_system_prompt(buf, size);
-}
-
-void ec_agent_append_turn_context_for_test(char *prompt, size_t size, const ec_msg_t *msg)
-{
-    append_turn_context_prompt(prompt, size, msg);
 }

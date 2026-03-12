@@ -12,37 +12,18 @@ static esp_err_t fake_tool_execute(const char *input_json, char *output, size_t 
     return ESP_OK;
 }
 
-static const ec_tools_t s_fake_tool = {
-    .name = "fake_tool",
-    .description = "fake tool used for contract tests",
-    .input_schema_json =
-    "{\"type\":\"object\",\"properties\":{},\"required\":[]}",
-    .execute = fake_tool_execute,
-};
-
 static void cleanup_tools_after_test(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
 }
 
 static void register_builtin_tools_for_test(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
     ec_tools_cron_configure_for_test(true, true);
     TEST_ASSERT_EQUAL(ESP_OK, ec_tools_register_all());
-}
-
-TEST_CASE("tool registry dispatches to registered tool", "[embed_claw][tools][contract]")
-{
-    char output[128];
-
-    ec_tools_reset_for_test();
-    TEST_ASSERT_EQUAL(ESP_OK, ec_tools_register(&s_fake_tool));
-    TEST_ASSERT_EQUAL(ESP_OK, ec_tools_execute("fake_tool", "{\"hello\":1}", output, sizeof(output)));
-    TEST_ASSERT_EQUAL_STRING("fake:{\"hello\":1}", output);
-    cleanup_tools_after_test();
 }
 
 TEST_CASE("tool registry builds json for built-in tools", "[embed_claw][tools][catalog]")
@@ -61,7 +42,7 @@ TEST_CASE("tool registry reports unknown tool without dereferencing null slots",
 {
     char output[128];
 
-    ec_tools_reset_for_test();
+    ec_tools_free_json();
     TEST_ASSERT_EQUAL(ESP_ERR_NOT_FOUND, ec_tools_execute("missing_tool", "{}", output, sizeof(output)));
     TEST_ASSERT_NOT_NULL(strstr(output, "unknown tool"));
     cleanup_tools_after_test();

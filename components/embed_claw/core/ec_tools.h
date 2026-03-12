@@ -82,6 +82,12 @@ esp_err_t ec_tools_execute(const char *name, const char *input_json, char *outpu
  */
 const char *ec_tools_get_json(void);
 
+/**
+ * @brief 释放json中申请的字符串内存
+ * 
+ */
+void ec_tools_free_json(void);
+
 
 /* ==================== [Macros] ============================================ */
 

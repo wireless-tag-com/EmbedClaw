@@ -9,16 +9,16 @@
 
 static void register_tools_for_file_tests(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
     ec_tools_cron_configure_for_test(true, true);
     TEST_ASSERT_EQUAL(ESP_OK, ec_tools_register_all());
 }
 
 static void cleanup_tools_after_test(void)
 {
-    ec_tools_reset_for_test();
-    ec_tools_cron_reset_for_test();
+    ec_tools_free_json();
+    
 }
 
 static void remove_if_exists(const char *path)

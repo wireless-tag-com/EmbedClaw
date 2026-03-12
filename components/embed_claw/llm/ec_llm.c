@@ -90,9 +90,4 @@ esp_err_t ec_llm_response_free(ec_llm_response_t *resp)
     return ESP_OK;
 }
 
-void ec_llm_reset_for_test(void)
-{
-    s_providers = NULL;
-}
-
 /* ==================== [Static Functions] ================================== */
