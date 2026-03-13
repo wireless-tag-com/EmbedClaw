@@ -24,7 +24,7 @@
 - [x] WebSocket
 - [ ] MQTT
 - [x] Feishu (Lark)
-- [ ] QQ
+- [x] QQ
 - [ ] WeCom (WeChat Work)
 - [ ] DingTalk
 
