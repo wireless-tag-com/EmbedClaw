@@ -103,7 +103,7 @@ static TaskHandle_t s_ws_task = NULL;
 static esp_websocket_client_handle_t s_ws_client = NULL;
 
 static const ec_channel_t s_driver = {
-    .name = EC_CHAN_QQ,
+    .name = g_ec_channel_qq,
     .vtable = {
         .start = ec_channel_qq_start,
         .send = ec_channel_qq_send,
@@ -518,7 +518,7 @@ static void qq_push_inbound_message(const char *chat_id, const char *content)
         return;
     }
 
-    snprintf(msg.channel, sizeof(msg.channel), "%s", EC_CHAN_QQ);
+    snprintf(msg.channel, sizeof(msg.channel), "%s", g_ec_channel_qq);
     snprintf(msg.chat_id, sizeof(msg.chat_id), "%s", chat_id);
     msg.content = strdup(content);
     if (!msg.content) {
@@ -571,7 +571,7 @@ static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, e
     }
 
     memset(msg, 0, sizeof(*msg));
-    snprintf(msg->channel, sizeof(msg->channel), "%s", EC_CHAN_QQ);
+    snprintf(msg->channel, sizeof(msg->channel), "%s", g_ec_channel_qq);
     snprintf(msg->chat_id, sizeof(msg->chat_id), "%s", chat_id);
     msg->content = strdup(content);
     if (!msg->content) {
@@ -586,7 +586,7 @@ static bool qq_parse_chat_id(const char *chat_id, qq_target_kind_t *kind, char *
     const char *id = NULL;
     qq_target_kind_t local_kind = QQ_TARGET_KIND_NONE;
 
-    if (!chat_id || !id_buf || id_buf_size == 0 || !ec_channel_validate_chat_id(EC_CHAN_QQ, chat_id)) {
+    if (!chat_id || !id_buf || id_buf_size == 0 || !ec_channel_validate_chat_id(g_ec_channel_qq, chat_id)) {
         return false;
     }
 
@@ -949,7 +949,7 @@ static esp_err_t ec_channel_qq_start(void)
 
 static esp_err_t ec_channel_qq_send(const ec_msg_t *msg)
 {
-    if (!msg || !ec_channel_validate_chat_id(EC_CHAN_QQ, msg->chat_id)) {
+    if (!msg || !ec_channel_validate_chat_id(g_ec_channel_qq, msg->chat_id)) {
         return ESP_ERR_INVALID_ARG;
     }
 

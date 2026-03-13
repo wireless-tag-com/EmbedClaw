@@ -186,15 +186,14 @@ static bool cron_sanitize_destination(ec_cron_job_t *job)
     }
 
     if (job->channel[0] == '\0') {
-        strncpy(job->channel, EC_CHAN_SYSTEM, sizeof(job->channel) - 1);
+        strncpy(job->channel, g_ec_channel_system, sizeof(job->channel) - 1);
         changed = true;
     }
 
-    if (ec_channel_requires_chat_id(job->channel) &&
-        !ec_channel_validate_chat_id(job->channel, job->chat_id)) {
+    if (!ec_channel_validate_chat_id(job->channel, job->chat_id)) {
         ESP_LOGW(TAG, "Cron job %s has invalid %s chat_id, fallback to system:cron",
                  job->id[0] ? job->id : "<new>", job->channel);
-        strncpy(job->channel, EC_CHAN_SYSTEM, sizeof(job->channel) - 1);
+        strncpy(job->channel, g_ec_channel_system, sizeof(job->channel) - 1);
         strncpy(job->chat_id, "cron", sizeof(job->chat_id) - 1);
         changed = true;
     } else if (job->chat_id[0] == '\0') {
@@ -463,8 +462,7 @@ static esp_err_t ec_tool_cron_add_execute(const char *input_json, char *output, 
     if (channel) strncpy(job.channel, channel, sizeof(job.channel) - 1);
     if (chat_id) strncpy(job.chat_id, chat_id, sizeof(job.chat_id) - 1);
 
-    if (ec_channel_requires_chat_id(job.channel) &&
-        !ec_channel_validate_chat_id(job.channel, job.chat_id)) {
+    if (!ec_channel_validate_chat_id(job.channel, job.chat_id)) {
         snprintf(output, output_size,
                  "Error: cron_add with channel='%s' requires a valid chat_id", job.channel);
         cJSON_Delete(root);
