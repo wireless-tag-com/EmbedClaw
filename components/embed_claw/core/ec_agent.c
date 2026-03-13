@@ -12,6 +12,7 @@
 /* ==================== [Includes] ========================================== */
 
 #include "ec_agent.h"
+#include "ec_channel.h"
 #include "ec_config_internal.h"
 #include "llm/ec_llm.h"
 
@@ -193,8 +194,8 @@ static char *patch_tool_input_with_context(const ec_llm_tool_call_t *call, const
         changed = true;
     }
 
-    if (channel && strcmp(channel, EC_CHAN_FEISHU) == 0 &&
-            strcmp(msg->channel, EC_CHAN_FEISHU) == 0 && msg->chat_id[0] != '\0') {
+    if (channel && strcmp(channel, g_ec_channel_feishu) == 0 &&
+            strcmp(msg->channel, g_ec_channel_feishu) == 0 && msg->chat_id[0] != '\0') {
         cJSON *chat_item = cJSON_GetObjectItem(root, "chat_id");
         const char *chat_id = cJSON_IsString(chat_item) ? chat_item->valuestring : NULL;
         if (!chat_id || chat_id[0] == '\0' || strcmp(chat_id, "cron") == 0) {
@@ -417,7 +418,7 @@ static void agent_loop_task(void *arg)
         // 进入 ReAct 循环，最多迭代 EC_AGENT_MAX_TOOL_ITER 次
         for (size_t i = 0; i < EC_AGENT_MAX_TOOL_ITER; i++) {
 #if EC_AGENT_SEND_WORKING_STATUS
-            if (!sent_working_status && strcmp(msg.channel, EC_CHAN_SYSTEM) != 0) {
+            if (!sent_working_status && strcmp(msg.channel, g_ec_channel_system) != 0) {
                 ec_msg_t status = {0};
                 strncpy(status.channel, msg.channel, sizeof(status.channel) - 1);
                 strncpy(status.chat_id, msg.chat_id, sizeof(status.chat_id) - 1);

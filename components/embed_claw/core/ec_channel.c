@@ -20,6 +20,9 @@
 
 /* ==================== [Defines] =========================================== */
 
+#define EC_CHANNEL_NAME
+#include "channel/ec_channel_reg.inc"
+
 /* ==================== [Typedefs] ========================================== */
 
 /* ==================== [Static Prototypes] ================================= */
@@ -33,6 +36,8 @@ static bool string_has_prefix(const char *text, const char *prefix);
 
 /* ==================== [Static Variables] ================================== */
 
+const char g_ec_channel_system[] = "system";
+
 static const char *TAG = "channel";
 
 /*
@@ -40,9 +45,8 @@ static const char *TAG = "channel";
  * custom drivers can register extra providers without colliding with the
  * compile-time enum count.
  */
-#define EC_CHANNEL_REGISTRY_CAPACITY _EC_CHANNEL_ENMU_MAX
 
-static const ec_channel_t *s_channel[EC_CHANNEL_REGISTRY_CAPACITY] = {0};
+static const ec_channel_t *s_channel[_EC_CHANNEL_ENMU_MAX] = {0};
 
 /* ==================== [Macros] ============================================ */
 
@@ -62,15 +66,7 @@ esp_err_t ec_channel_register(const ec_channel_t *driver)
         return ESP_ERR_INVALID_ARG;
     }
 
-    for (size_t i = 0; i < EC_CHANNEL_REGISTRY_CAPACITY; i++) {
-        if (s_channel[i] && channel_names_equal(s_channel[i]->name, driver->name)) {
-            s_channel[i] = driver;
-            ESP_LOGI(TAG, "Updated channel: %s", driver->name);
-            return ESP_OK;
-        }
-    }
-
-    for (size_t i = 0; i < EC_CHANNEL_REGISTRY_CAPACITY; i++) {
+    for (size_t i = 0; i < _EC_CHANNEL_ENMU_MAX; i++) {
         if (!s_channel[i]) {
             s_channel[i] = driver;
             ESP_LOGI(TAG, "Registered channel: %s", driver->name);
@@ -82,22 +78,20 @@ esp_err_t ec_channel_register(const ec_channel_t *driver)
     return ESP_ERR_NO_MEM;
 }
 
-esp_err_t ec_channel_start(const char *channel)
+esp_err_t ec_channel_start(void)
 {
-    const ec_channel_t *driver = find_channel(channel);
-
-    if (!driver) {
-        ESP_LOGW(TAG, "Unknown channel: %s", channel ? channel : "(null)");
-        return channel ? ESP_ERR_NOT_FOUND : ESP_ERR_INVALID_ARG;
+    for (size_t i = 0; i < _EC_CHANNEL_ENMU_MAX; i++) {
+        if (s_channel[i]) {
+            esp_err_t err = s_channel[i]->vtable.start();
+            if (err == ESP_OK) {
+                ESP_LOGI(TAG, "Starting channel: %s", s_channel[i]->name);
+            } else {
+                ESP_LOGE(TAG, "Starting channel failed: %s", s_channel[i]->name);
+            }
+        }
     }
 
-    if (!driver->vtable.start) {
-        ESP_LOGW(TAG, "Channel has no start handler: %s", channel);
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    ESP_LOGI(TAG, "Starting channel: %s", channel);
-    return driver->vtable.start();
+    return ESP_OK;
 }
 
 esp_err_t ec_channel_send(const ec_msg_t *msg)
@@ -122,38 +116,20 @@ esp_err_t ec_channel_send(const ec_msg_t *msg)
     return driver->vtable.send(msg);
 }
 
-bool ec_channel_requires_chat_id(const char *channel)
-{
-    if (!channel || channel[0] == '\0') {
-        return false;
-    }
-
-    return channel_names_equal(channel, EC_CHAN_FEISHU) ||
-           channel_names_equal(channel, EC_CHAN_QQ);
-}
-
 bool ec_channel_validate_chat_id(const char *channel, const char *chat_id)
 {
     const char *id = NULL;
 
-    if (!channel || channel[0] == '\0') {
+    if (!channel || channel[0] == '\0' || !chat_id || chat_id[0] == '\0') {
         return false;
     }
 
-    if (!ec_channel_requires_chat_id(channel)) {
-        return true;
-    }
-
-    if (!chat_id || chat_id[0] == '\0') {
-        return false;
-    }
-
-    if (channel_names_equal(channel, EC_CHAN_FEISHU)) {
+    if (channel_names_equal(channel, g_ec_channel_feishu)) {
         return (string_has_prefix(chat_id, "open_id:") && chat_id[8] != '\0') ||
                (string_has_prefix(chat_id, "chat_id:") && chat_id[8] != '\0');
     }
 
-    if (channel_names_equal(channel, EC_CHAN_QQ)) {
+    if (channel_names_equal(channel, g_ec_channel_qq)) {
         if (string_has_prefix(chat_id, "c2c:")) {
             id = chat_id + 4;
         } else if (string_has_prefix(chat_id, "group:")) {
@@ -187,7 +163,7 @@ static const ec_channel_t *find_channel(const char *channel)
         return NULL;
     }
 
-    for (size_t i = 0; i < EC_CHANNEL_REGISTRY_CAPACITY; i++) {
+    for (size_t i = 0; i < _EC_CHANNEL_ENMU_MAX; i++) {
         if (s_channel[i] && channel_names_equal(s_channel[i]->name, channel)) {
             return s_channel[i];
         }

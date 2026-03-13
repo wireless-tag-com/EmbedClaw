@@ -25,6 +25,11 @@ extern "C" {
 
 /* ==================== [Defines] =========================================== */
 
+#define EC_CHANNEL_NAME_EXTERN
+#include "channel/ec_channel_reg.inc"
+
+extern const char g_ec_channel_system[];
+
 /* ==================== [Typedefs] ========================================== */
 
 typedef struct _ec_channel_t ec_channel_t;
@@ -73,7 +78,7 @@ esp_err_t ec_channel_register(const ec_channel_t *driver);
  * @return esp_err_t 
  *  - ESP_OK 启动成功
  */
-esp_err_t ec_channel_start(const char *channel);
+esp_err_t ec_channel_start(void);
 
 /**
  * @brief 发送发送信息给指定channel
@@ -85,12 +90,16 @@ esp_err_t ec_channel_start(const char *channel);
 esp_err_t ec_channel_send(const ec_msg_t *msg);
 
 /**
- * @brief 指定 channel 是否要求显式 chat_id
- */
-bool ec_channel_requires_chat_id(const char *channel);
-
-/**
- * @brief 校验 channel 对应的 chat_id 格式
+ * @brief 校验指定 channel 的 chat_id 是否符合格式要求
+ *
+ * 所有进入系统的消息都应带有非空 chat_id。对于 Feishu、QQ 这类
+ * 对 chat_id 格式有要求的 channel，会进一步按各自规则校验。
+ * 对于 websocket、system 等仅要求非空 chat_id 的来源，非空即视为合法。
+ *
+ * @param channel 指定 channel 名称
+ * @param chat_id 待校验的 chat_id
+ * @return true chat_id 合法
+ * @return false chat_id 非法，或 channel/chat_id 为空
  */
 bool ec_channel_validate_chat_id(const char *channel, const char *chat_id);
 

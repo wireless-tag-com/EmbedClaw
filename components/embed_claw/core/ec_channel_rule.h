@@ -1,3 +1,5 @@
+#include "ec_config_internal.h"
+
 #ifdef EC_CHANNEL_REG
 #undef EC_CHANNEL_REG
 #endif
@@ -24,9 +26,18 @@
     } \
 } while (0);
 
-#endif // __EC_CHANNEL_RULE_H__
+#endif
+
+#ifdef EC_CHANNEL_NAME
+#define EC_CHANNEL_REG(name) const char g_ec_channel_##name[] = #name;
+#endif
+
+#ifdef EC_CHANNEL_NAME_EXTERN
+#define EC_CHANNEL_REG(name) extern const char g_ec_channel_##name[];
+#endif
 
 #undef EC_CHANNEL_ENMU
 #undef EC_CHANNEL_REG_EXTERN
 #undef EC_CHANNEL_REG_FUNC
-
+#undef EC_CHANNEL_NAME
+#undef EC_CHANNEL_NAME_EXTERN

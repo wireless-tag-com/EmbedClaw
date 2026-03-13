@@ -1,3 +1,5 @@
+#include "ec_config_internal.h"
+
 #ifdef EC_TOOLS_REG
 #undef EC_TOOLS_REG
 #endif

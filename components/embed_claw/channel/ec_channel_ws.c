@@ -53,7 +53,7 @@ static httpd_handle_t s_server = NULL;
 
 static ws_client_t s_clients[EC_WS_MAX_CLIENTS];
 static const ec_channel_t s_driver = {
-    .name = EC_CHAN_WEBSOCKET,
+    .name = g_ec_channel_ws,
     .vtable = {
         .start = ec_channel_ws_start,
         .send = ec_channel_ws_send,
@@ -257,19 +257,18 @@ static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *m
     chan = cJSON_GetObjectItem(root, "channel");
     target_channel = (chan && cJSON_IsString(chan) && chan->valuestring[0] != '\0')
                      ? chan->valuestring
-                     : EC_CHAN_WEBSOCKET;
+                     : g_ec_channel_ws;
 
     chat_id = client ? client->chat_id : "ws_unknown";
     cid = cJSON_GetObjectItem(root, "chat_id");
     if (cid && cJSON_IsString(cid)) {
         chat_id = cid->valuestring;
-        if (client && strcmp(target_channel, EC_CHAN_WEBSOCKET) == 0) {
+        if (client && strcmp(target_channel, g_ec_channel_ws) == 0) {
             strncpy(client->chat_id, chat_id, sizeof(client->chat_id) - 1);
         }
     }
 
-    if (ec_channel_requires_chat_id(target_channel) &&
-        !ec_channel_validate_chat_id(target_channel, chat_id)) {
+    if (!ec_channel_validate_chat_id(target_channel, chat_id)) {
         cJSON_Delete(root);
         return ESP_ERR_INVALID_ARG;
     }

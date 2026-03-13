@@ -23,15 +23,10 @@ extern "C" {
 
 /* ==================== [Defines] =========================================== */
 
-#define EC_CHAN_WEBSOCKET "websocket"
-#define EC_CHAN_SYSTEM "system"
-#define EC_CHAN_FEISHU "feishu"
-#define EC_CHAN_QQ "qq"
-
 /* ==================== [Typedefs] ========================================== */
 
 typedef struct {
-    char channel[16];       /* "websocket", "system", "feishu", "qq" */
+    char channel[16];       /* Channel name such as g_ec_channel_ws/g_ec_channel_qq */
     char chat_id[64];       /* Channel-specific id (feishu/qq target id, WS client id) */
     char *content;          /* Heap-allocated message text (caller must free) */
 } ec_msg_t;

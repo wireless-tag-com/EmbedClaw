@@ -31,7 +31,6 @@
 #include "esp_websocket_client.h"
 #include "lwip/netdb.h"
 
-#include "core/ec_agent.h"
 #include "core/ec_channel.h"
 
 /* ==================== [Defines] =========================================== */
@@ -120,7 +119,7 @@ static char s_last_event_ids[FEISHU_LAST_EVENT_ID_N][96] = {0};
 static int s_last_event_id_idx = 0;
 
 static const ec_channel_t s_driver = {
-    .name = EC_CHAN_FEISHU,
+    .name = g_ec_channel_feishu,
     .vtable = {
         .start = ec_channel_feishu_start,
         .send = ec_channel_feishu_send,
@@ -800,7 +799,7 @@ static void process_ws_event_payload(const char *payload, size_t payload_len)
     }
 
     ec_msg_t msg = {0};
-    strncpy(msg.channel, EC_CHAN_FEISHU, sizeof(msg.channel) - 1);
+    strncpy(msg.channel, g_ec_channel_feishu, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, reply_chat_id, sizeof(msg.chat_id) - 1);
     msg.content = text;
     ESP_LOGI(TAG, "Feishu WS: pushing to agent chat_id=%s content_len=%d", reply_chat_id, (int)strlen(text));
