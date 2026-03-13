@@ -89,14 +89,8 @@ bool ec_channel_qq_parse_chat_id_for_test(const char *chat_id,
 
 void ec_channel_qq_reset_state_for_test(void)
 {
-    s_ws_client = NULL;
-    s_connected = false;
-    s_need_reconnect = false;
+
     s_access_token[0] = '\0';
-    s_token_expire_at_us = 0;
     s_gateway_url[0] = '\0';
     s_session_id[0] = '\0';
-    s_last_seq = -1;
-    s_heartbeat_interval_ms = 0;
-    s_last_heartbeat_us = 0;
 }

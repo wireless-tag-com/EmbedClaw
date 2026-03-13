@@ -40,7 +40,7 @@ TEST_CASE("channel registry dispatches to registered driver", "[embed_claw][chan
     s_last_content = NULL;
 
     TEST_ASSERT_EQUAL(ESP_OK, ec_channel_register(&s_fake_channel));
-    TEST_ASSERT_EQUAL(ESP_OK, ec_channel_start("fake_channel"));
+    TEST_ASSERT_EQUAL(ESP_OK, ec_channel_start());
 
     ec_msg_t msg = {0};
     strncpy(msg.channel, "fake_channel", sizeof(msg.channel) - 1);
@@ -52,7 +52,7 @@ TEST_CASE("channel registry dispatches to registered driver", "[embed_claw][chan
     TEST_ASSERT_EQUAL_PTR(hello, s_last_content);
 }
 
-TEST_CASE("channel registry reports unknown driver", "[embed_claw][channel][contract]")
+TEST_CASE("channel send reports unknown driver", "[embed_claw][channel][contract]")
 {
     char hello[] = "hello";
 
@@ -60,6 +60,5 @@ TEST_CASE("channel registry reports unknown driver", "[embed_claw][channel][cont
     strncpy(msg.channel, "missing_channel", sizeof(msg.channel) - 1);
     msg.content = hello;
 
-    TEST_ASSERT_EQUAL(ESP_ERR_NOT_FOUND, ec_channel_start("missing_channel"));
     TEST_ASSERT_EQUAL(ESP_ERR_NOT_FOUND, ec_channel_send(&msg));
 }

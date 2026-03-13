@@ -14,9 +14,9 @@ TEST_CASE("ws channel parses websocket user payloads", "[embed_claw][channel][ws
 
     TEST_ASSERT_EQUAL(ESP_OK,
                       ec_channel_ws_parse_payload_for_test(42,
-                                                           "{\"type\":\"message\",\"content\":\"hello\"}",
-                                                           &msg));
-    TEST_ASSERT_EQUAL_STRING("websocket", msg.channel);
+                              "{\"type\":\"message\",\"content\":\"hello\"}",
+                              &msg));
+    TEST_ASSERT_EQUAL_STRING("ws", msg.channel);
     TEST_ASSERT_EQUAL_STRING("ws_42", msg.chat_id);
     TEST_ASSERT_EQUAL_STRING("hello", msg.content);
     free(msg.content);

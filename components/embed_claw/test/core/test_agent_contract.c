@@ -6,6 +6,7 @@
 #include "unity.h"
 
 #include "ec_config_internal.h"
+#include "core/ec_channel.h"
 #include "core/ec_skill_loader.h"
 #include "support/ec_test_hooks.h"
 
@@ -39,7 +40,7 @@ TEST_CASE("agent patches cron target from current turn context", "[embed_claw][c
     ec_msg_t msg = {0};
     char *patched;
 
-    strncpy(msg.channel, EC_CHAN_FEISHU, sizeof(msg.channel) - 1);
+    strncpy(msg.channel, g_ec_channel_feishu, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, "open_id:ou_123", sizeof(msg.chat_id) - 1);
 
     patched = ec_agent_patch_tool_input_with_context_for_test(
@@ -101,10 +102,10 @@ TEST_CASE("agent system prompt includes files memory skills and turn context", "
     TEST_ASSERT_NOT_NULL(strstr(prompt, "## Available Skills"));
     TEST_ASSERT_NOT_NULL(strstr(prompt, "Weather"));
 
-    strncpy(msg.channel, EC_CHAN_WEBSOCKET, sizeof(msg.channel) - 1);
+    strncpy(msg.channel, g_ec_channel_ws, sizeof(msg.channel) - 1);
     strncpy(msg.chat_id, "ws_42", sizeof(msg.chat_id) - 1);
     ec_agent_append_turn_context_for_test(prompt, prompt_size, &msg);
-    TEST_ASSERT_NOT_NULL(strstr(prompt, "source_channel: websocket"));
+    TEST_ASSERT_NOT_NULL(strstr(prompt, "source_channel: ws"));
     TEST_ASSERT_NOT_NULL(strstr(prompt, "source_chat_id: ws_42"));
 
     free(prompt);

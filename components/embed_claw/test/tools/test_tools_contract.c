@@ -6,11 +6,6 @@
 #include "core/ec_tools.h"
 #include "support/ec_test_hooks.h"
 
-static esp_err_t fake_tool_execute(const char *input_json, char *output, size_t output_size)
-{
-    snprintf(output, output_size, "fake:%s", input_json ? input_json : "{}");
-    return ESP_OK;
-}
 
 static void cleanup_tools_after_test(void)
 {

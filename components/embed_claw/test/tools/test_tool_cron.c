@@ -53,14 +53,14 @@ TEST_CASE("cron tool validates required fields and schedule arguments", "[embed_
                                        "{\"name\":\"relay\",\"schedule_type\":\"every\",\"interval_s\":60,"
                                        "\"message\":\"ping\",\"channel\":\"feishu\"}",
                                        output, sizeof(output)));
-    TEST_ASSERT_NOT_NULL(strstr(output, "requires a valid chat_id"));
+    TEST_ASSERT_NOT_NULL(strstr(output, "invalid chat_id"));
 
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
                       ec_tools_execute("cron_add",
                                        "{\"name\":\"qq relay\",\"schedule_type\":\"every\",\"interval_s\":60,"
                                        "\"message\":\"ping\",\"channel\":\"qq\",\"chat_id\":\"qq_group:123\"}",
                                        output, sizeof(output)));
-    TEST_ASSERT_NOT_NULL(strstr(output, "requires a valid chat_id"));
+    TEST_ASSERT_NOT_NULL(strstr(output, "invalid chat_id"));
 
     cleanup_tools_after_test();
 }
