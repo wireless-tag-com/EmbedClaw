@@ -225,7 +225,10 @@ EmbedClaw 使用 SPIFFS 保存人格、用户信息、会话与记忆：
 
 ### 2. 编译
 
+编译前先同步一份 `esp32s3` 的默认配置到 `sdkconfig.defaults`，这样后续进入 `menuconfig` 时会带上当前仓库针对 `esp32s3` 预设的默认项：
+
 ```bash
+cp sdkconfig.defaults.esp32s3 sdkconfig.defaults
 idf.py set-target esp32s3
 idf.py build
 ```

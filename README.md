@@ -227,7 +227,10 @@ The device acts as a WebSocket client, so the device itself does not need a publ
 
 ### 2. Build
 
+Before building, copy the `esp32s3` defaults into `sdkconfig.defaults` so `menuconfig` starts from the repository's intended `esp32s3` baseline:
+
 ```bash
+cp sdkconfig.defaults.esp32s3 sdkconfig.defaults
 idf.py set-target esp32s3
 idf.py build
 ```
