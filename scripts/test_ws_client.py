@@ -50,8 +50,13 @@ def main() -> None:
     parser.add_argument("--allow-proxy", action="store_true", help="Do not clear HTTP(S)_PROXY env")
     parser.add_argument("--timeout", type=float, default=5.0, help="Connect timeout in seconds")
     parser.add_argument("--chat-id", default="", help="Optional chat_id field to send in JSON")
+    parser.add_argument("--chat-type", default="", help="Optional chat_type field to send in JSON")
     parser.add_argument("--channel", default="", help="Optional channel field to send in JSON")
     args = parser.parse_args()
+
+    target_channel = args.channel.strip().lower()
+    if target_channel and target_channel != "ws" and (not args.chat_id or not args.chat_type):
+        parser.error("non-ws --channel requires both --chat-id and --chat-type")
 
     if not args.allow_proxy:
         _clear_proxy_env(args.host)
@@ -125,6 +130,7 @@ def main() -> None:
             if line == "/help":
                 print("Input text will be packaged as JSON and sent:")
                 print('{"type":"message","content":"..."}')
+                print("For non-ws channel, pass --channel + --chat-id + --chat-type.")
                 print("Commands: /quit, /exit, /help, /json {raw_json}")
                 continue
             if line.startswith("/json "):
@@ -147,6 +153,8 @@ def main() -> None:
             }
             if args.chat_id:
                 payload["chat_id"] = args.chat_id
+            if args.chat_type:
+                payload["chat_type"] = args.chat_type
             if args.channel:
                 payload["channel"] = args.channel
 
