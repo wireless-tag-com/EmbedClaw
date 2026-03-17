@@ -330,7 +330,8 @@ To simulate Feishu from a relay:
   "type": "message",
   "content": "Set a reminder for 8am tomorrow",
   "channel": "feishu",
-  "chat_id": "open_id:ou_xxx"
+  "chat_type": "open_id",
+  "chat_id": "ou_xxx"
 }
 ```
 
@@ -342,9 +343,12 @@ Device response:
 {
   "type": "response",
   "content": "Here’s today’s tech news summary.",
-  "chat_id": "my-debug-session"
+  "chat_id": "my-debug-session",
+  "chat_type": "ws"
 }
 ```
+
+`chat_type` is included in outbound responses and follows the current session/inbound routing context.
 
 ## Feishu (Lark) integration
 
@@ -397,10 +401,10 @@ Once the device is online, the Feishu channel starts and connects to Feishu.
 - DM the bot, or
 - Add the bot to a group and chat there.
 
-Reply target is chosen automatically:
+Reply target is chosen automatically with split routing fields:
 
-- DMs: `open_id:<id>`
-- Groups: `chat_id:<id>`
+- DMs: `chat_type="open_id"`, `chat_id="<open_id>"`
+- Groups: `chat_type="chat_id"`, `chat_id="<chat_id>"`
 
 ### Optional: PC relay script
 
@@ -431,11 +435,11 @@ EmbedClaw also includes an official QQBot channel. This implementation follows t
 - `GROUP_AT_MESSAGE_CREATE`
 - `AT_MESSAGE_CREATE`
 
-These map to the following `chat_id` formats inside EmbedClaw:
+These map to routing fields inside EmbedClaw:
 
-- `c2c:<openid>`
-- `group:<group_openid>`
-- `channel:<channel_id>`
+- C2C: `chat_type="c2c"`, `chat_id="<openid>"`
+- Group: `chat_type="group"`, `chat_id="<group_openid>"`
+- Channel: `chat_type="channel"`, `chat_id="<channel_id>"`
 
 ### Minimal config
 
@@ -558,8 +562,9 @@ When the user asks for translation.
 1. Add `ec_channel_xxx.c` under `components/embed_claw/channel/`
 2. Implement `start()` and `send()`
 3. Convert incoming messages to `ec_msg_t` and call `ec_agent_inbound()`
-4. On outbound, route by `msg->chat_id`
-5. Register with `EC_CHANNEL_REG(xxx)` in `ec_channel_reg.inc`
+4. On outbound, route by `msg->channel` to select the channel driver
+5. In each channel `send()`, use `msg->chat_type` + `msg->chat_id` to resolve the destination
+6. Register with `EC_CHANNEL_REG(xxx)` in `ec_channel_reg.inc`
 
 Minimal skeleton:
 
@@ -597,11 +602,11 @@ To add another provider:
 4. Map the provider’s response to `ec_llm_response_t`
 5. Wire the new type in `ec_llm.c` and select it at startup
 
-The repo already has a stub for Anthropic; the working path is OpenAI-compatible (OpenAI, DeepSeek, Moonshot, Qwen, etc.).
+The current runtime path is OpenAI-compatible providers (OpenAI, DeepSeek, Moonshot, Qwen, etc.); `LLM_TYPE_ANTHROPIC` is declared but not wired to a provider implementation yet.
 
 ## Possible next steps
 
-With clear boundaries, natural extensions include:[TODE.md](TODO.md)
+With clear boundaries, natural extensions include: [TODO.md](TODO.md)
 
 ## Notes
 
