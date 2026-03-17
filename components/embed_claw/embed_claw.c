@@ -28,14 +28,7 @@
 #include "esp_log.h"
 /* ==================== [Defines] =========================================== */
 
-#define EC_OUTBOUND_TASK_STACK 4096
-#define EC_OUTBOUND_TASK_PRIO  5
-
 /* ==================== [Typedefs] ========================================== */
-
-/* ==================== [Static Prototypes] ================================= */
-
-static void outbound_dispatch_task(void *arg);
 
 /* ==================== [Static Variables] ================================== */
 
@@ -60,18 +53,6 @@ esp_err_t ec_embed_claw_start(void)
     ESP_ERROR_CHECK(ec_agent_start());
     ESP_ERROR_CHECK(ec_channel_start());
 
-    BaseType_t task_ok = xTaskCreate(
-                             outbound_dispatch_task,
-                             "ec_outbound",
-                             EC_OUTBOUND_TASK_STACK,
-                             NULL,
-                             EC_OUTBOUND_TASK_PRIO,
-                             NULL);
-    if (task_ok != pdPASS) {
-        ESP_LOGE(TAG, "outbound task create failed");
-        return ESP_FAIL;
-    }
-
     ESP_LOGI(TAG, "EmbedClaw started");
 
     return ESP_OK;
@@ -79,27 +60,3 @@ esp_err_t ec_embed_claw_start(void)
 
 /* ==================== [Static Functions] ================================== */
 
-static void outbound_dispatch_task(void *arg)
-{
-    (void)arg;
-
-    while (1) {
-        ec_msg_t msg = {0};
-        esp_err_t err = ec_agent_outbound(&msg, UINT32_MAX);
-        if (err != ESP_OK) {
-            continue;
-        }
-
-        ESP_LOGI(TAG, "Dispatch outbound to %s:%s (%d bytes)",
-                 msg.channel, msg.chat_id, msg.content ? (int)strlen(msg.content) : 0);
-        err = ec_channel_send(&msg);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "Send outbound to:%s failed: %s",
-                     msg.chat_id, esp_err_to_name(err));
-        } else {
-            ESP_LOGI(TAG, "Outbound delivered to %s:%s", msg.channel, msg.chat_id);
-        }
-
-        free(msg.content);
-    }
-}

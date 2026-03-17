@@ -41,15 +41,14 @@ esp_err_t ec_channel_qq_build_request_for_test(const ec_msg_t *msg,
                                                char *path, size_t path_size,
                                                char *body, size_t body_size)
 {
-    qq_target_kind_t kind;
     char path_buf[96];
     char *body_str;
 
-    if (!qq_build_api_path(msg ? msg->chat_id : NULL, path_buf, sizeof(path_buf), &kind)) {
+    if (!qq_build_api_path(msg, path_buf, sizeof(path_buf))) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    body_str = qq_build_message_body_alloc(kind, msg);
+    body_str = qq_build_message_body_alloc(msg);
     if (!body_str) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -63,28 +62,6 @@ esp_err_t ec_channel_qq_build_request_for_test(const ec_msg_t *msg,
     snprintf(body, body_size, "%s", body_str);
     free(body_str);
     return ESP_OK;
-}
-
-bool ec_channel_qq_parse_chat_id_for_test(const char *chat_id,
-                                          char *kind, size_t kind_size,
-                                          char *id_buf, size_t id_buf_size)
-{
-    qq_target_kind_t target_kind;
-    bool ok = qq_parse_chat_id(chat_id, &target_kind, id_buf, id_buf_size);
-
-    if (ok && kind && kind_size > 0) {
-        const char *kind_name = "none";
-        if (target_kind == QQ_TARGET_KIND_C2C) {
-            kind_name = "c2c";
-        } else if (target_kind == QQ_TARGET_KIND_GROUP) {
-            kind_name = "group";
-        } else if (target_kind == QQ_TARGET_KIND_CHANNEL) {
-            kind_name = "channel";
-        }
-        snprintf(kind, kind_size, "%s", kind_name);
-    }
-
-    return ok;
 }
 
 void ec_channel_qq_reset_state_for_test(void)

@@ -118,6 +118,7 @@ static esp_err_t ec_tool_get_time_execute(const char *input_json, char *output, 
 static bool format_epoch(time_t epoch, char *out, size_t out_size)
 {
     struct tm local;
+    char time_buf[64];
 
     if (!out || out_size == 0) {
         return false;
@@ -134,6 +135,10 @@ static bool format_epoch(time_t epoch, char *out, size_t out_size)
         return false;
     }
 
-    strftime(out, out_size, "%Y-%m-%d %H:%M:%S %Z (%A)", &local);
-    return true;
+    if (strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S %Z (%A)", &local) == 0) {
+        return false;
+    }
+
+    int n = snprintf(out, out_size, "%s, epoch=%lld", time_buf, (long long)epoch);
+    return n > 0 && (size_t)n < out_size;
 }

@@ -32,10 +32,11 @@ TEST_CASE("ws channel parses external relay payloads and validates chat id", "[e
                       ec_channel_ws_parse_payload_for_test(
                           7,
                           "{\"type\":\"message\",\"channel\":\"feishu\","
-                          "\"chat_id\":\"open_id:ou_123\",\"content\":\"nihao\"}",
+                          "\"chat_type\":\"open_id\",\"chat_id\":\"ou_123\",\"content\":\"nihao\"}",
                           &msg));
     TEST_ASSERT_EQUAL_STRING("feishu", msg.channel);
-    TEST_ASSERT_EQUAL_STRING("open_id:ou_123", msg.chat_id);
+    TEST_ASSERT_EQUAL_STRING("open_id", msg.chat_type);
+    TEST_ASSERT_EQUAL_STRING("ou_123", msg.chat_id);
     TEST_ASSERT_EQUAL_STRING("nihao", msg.content);
     free(msg.content);
 
@@ -44,24 +45,26 @@ TEST_CASE("ws channel parses external relay payloads and validates chat id", "[e
                       ec_channel_ws_parse_payload_for_test(
                           7,
                           "{\"type\":\"message\",\"channel\":\"qq\","
-                          "\"chat_id\":\"group:GROUP123\",\"content\":\"relay\"}",
+                          "\"chat_type\":\"group\",\"chat_id\":\"GROUP123\",\"content\":\"relay\"}",
                           &msg));
     TEST_ASSERT_EQUAL_STRING("qq", msg.channel);
-    TEST_ASSERT_EQUAL_STRING("group:GROUP123", msg.chat_id);
+    TEST_ASSERT_EQUAL_STRING("group", msg.chat_type);
+    TEST_ASSERT_EQUAL_STRING("GROUP123", msg.chat_id);
     TEST_ASSERT_EQUAL_STRING("relay", msg.content);
     free(msg.content);
 
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
                       ec_channel_ws_parse_payload_for_test(
                           7,
-                          "{\"type\":\"message\",\"channel\":\"feishu\",\"content\":\"nihao\"}",
+                          "{\"type\":\"message\",\"channel\":\"feishu\","
+                          "\"chat_type\":\"open_id\",\"content\":\"nihao\"}",
                           &msg));
 
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
                       ec_channel_ws_parse_payload_for_test(
                           7,
                           "{\"type\":\"message\",\"channel\":\"qq\","
-                          "\"chat_id\":\"qq_group:123\",\"content\":\"relay\"}",
+                          "\"chat_id\":\"GROUP123\",\"content\":\"relay\"}",
                           &msg));
 }
 

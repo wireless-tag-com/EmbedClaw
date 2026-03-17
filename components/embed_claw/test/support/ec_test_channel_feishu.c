@@ -4,12 +4,6 @@
 #include "../../channel/ec_channel_feishu.c"
 #undef ec_channel_feishu
 
-void ec_channel_feishu_parse_chat_id_for_test(const char *chat_id, char *out_type, size_t type_len,
-                                              char *out_id, size_t id_len)
-{
-    parse_chat_id(chat_id, out_type, type_len, out_id, id_len);
-}
-
 bool ec_channel_feishu_parse_frame_for_test(const uint8_t *buf, size_t len,
                                             int32_t *method, int32_t *service,
                                             uint64_t *seq_id, uint64_t *log_id,

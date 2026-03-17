@@ -4,24 +4,6 @@
 
 #include "support/ec_test_hooks.h"
 
-TEST_CASE("feishu channel parses chat id prefixes", "[embed_claw][channel][feishu]")
-{
-    char type[16];
-    char id[64];
-
-    ec_channel_feishu_parse_chat_id_for_test("open_id:ou_123", type, sizeof(type), id, sizeof(id));
-    TEST_ASSERT_EQUAL_STRING("open_id", type);
-    TEST_ASSERT_EQUAL_STRING("ou_123", id);
-
-    ec_channel_feishu_parse_chat_id_for_test("chat_id:oc_456", type, sizeof(type), id, sizeof(id));
-    TEST_ASSERT_EQUAL_STRING("chat_id", type);
-    TEST_ASSERT_EQUAL_STRING("oc_456", id);
-
-    ec_channel_feishu_parse_chat_id_for_test("invalid", type, sizeof(type), id, sizeof(id));
-    TEST_ASSERT_EQUAL_STRING("", type);
-    TEST_ASSERT_EQUAL_STRING("", id);
-}
-
 TEST_CASE("feishu channel ping frames round-trip through parser", "[embed_claw][channel][feishu]")
 {
     uint8_t buf[128];

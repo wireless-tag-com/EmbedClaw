@@ -58,7 +58,7 @@
   - 必填字段校验
   - `at` / `every` 调度参数校验
   - `cron_add` / `cron_list` / `cron_remove`
-  - 外部 channel 的 `chat_id` 约束
+  - 外部 channel 的 `chat_type + chat_id` 约束
 
 ### 2.2 channels
 
@@ -69,13 +69,11 @@
   - Feishu relay 消息兼容解析
   - 出站 response JSON 编码
 - [test_channel_feishu.c](/home/kirto/EmbedClaw1/components/embed_claw/test/channel/test_channel_feishu.c)
-  - chat_id 前缀解析
   - WebSocket ping frame 编码/解析
   - response frame 编码/解析
 - [test_channel_qq.c](/home/kirto/EmbedClaw1/components/embed_claw/test/channel/test_channel_qq.c)
   - 官方 QQBot dispatch event 到 `ec_msg_t` 的映射
-  - `c2c:` / `group:` / `channel:` chat_id 解析
-  - 官方 REST path / body 编码
+  - `chat_type + chat_id` 到官方 REST path / body 的编码
 
 ### 2.3 llm
 
@@ -130,7 +128,6 @@ components/embed_claw/test/
 ├── README.md
 ├── sdkconfig.defaults
 ├── support/
-│   ├── ec_test_agent.c
 │   ├── ec_test_channel_feishu.c
 │   ├── ec_test_channel_qq.c
 │   ├── ec_test_channel_ws.c
