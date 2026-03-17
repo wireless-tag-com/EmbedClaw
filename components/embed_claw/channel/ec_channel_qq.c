@@ -53,13 +53,6 @@ typedef struct {
     size_t cap;
 } http_resp_t;
 
-typedef enum {
-    QQ_TARGET_KIND_NONE = 0,
-    QQ_TARGET_KIND_C2C,
-    QQ_TARGET_KIND_GROUP,
-    QQ_TARGET_KIND_CHANNEL,
-} qq_target_kind_t;
-
 /* ==================== [Static Prototypes] ================================= */
 
 static void http_resp_append(http_resp_t *r, const void *data, size_t len);
@@ -75,10 +68,8 @@ static bool qq_send_resume_frame(void);
 static bool qq_send_heartbeat(void);
 static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, ec_msg_t *msg);
 static void qq_handle_dispatch_event(const char *event_type, cJSON *data);
-static void qq_push_inbound_message(const char *chat_id, const char *content);
-static bool qq_parse_chat_id(const char *chat_id, qq_target_kind_t *kind, char *id_buf, size_t id_buf_size);
-static bool qq_build_api_path(const char *chat_id, char *path, size_t path_size, qq_target_kind_t *kind_out);
-static char *qq_build_message_body_alloc(qq_target_kind_t kind, const ec_msg_t *msg);
+static bool qq_build_api_path(const ec_msg_t *msg, char *path, size_t path_size);
+static char *qq_build_message_body_alloc(const ec_msg_t *msg);
 static bool qq_post_message(const ec_msg_t *msg);
 static void handle_ws_event(void *arg, esp_event_base_t base, int32_t event_id, void *event_data);
 static void qq_ws_task(void *arg);
@@ -505,27 +496,9 @@ static void qq_handle_dispatch_event(const char *event_type, cJSON *data)
         return;
     }
 
-    qq_push_inbound_message(msg.chat_id, msg.content);
-    free(msg.content);
-}
-
-static void qq_push_inbound_message(const char *chat_id, const char *content)
-{
-    ec_msg_t msg = {0};
-    esp_err_t err;
-
-    if (!chat_id || !content || content[0] == '\0') {
-        return;
-    }
-
     snprintf(msg.channel, sizeof(msg.channel), "%s", g_ec_channel_qq);
-    snprintf(msg.chat_id, sizeof(msg.chat_id), "%s", chat_id);
-    msg.content = strdup(content);
-    if (!msg.content) {
-        return;
-    }
 
-    err = ec_agent_inbound(&msg);
+    esp_err_t err = ec_agent_inbound(&msg);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Inbound queue full, drop qq message");
         free(msg.content);
@@ -537,6 +510,7 @@ static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, e
     const char *content;
     const char *id;
     char chat_id[64];
+    char chat_type[16];
 
     if (!event_type || !data || !msg) {
         return ESP_ERR_INVALID_ARG;
@@ -553,19 +527,22 @@ static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, e
         if (!id || id[0] == '\0') {
             return ESP_ERR_INVALID_ARG;
         }
-        snprintf(chat_id, sizeof(chat_id), "c2c:%s", id);
+        snprintf(chat_type, sizeof(chat_type), "c2c");
+        snprintf(chat_id, sizeof(chat_id), "%s", id);
     } else if (strcmp(event_type, "GROUP_AT_MESSAGE_CREATE") == 0) {
         id = cJSON_GetStringValue(cJSON_GetObjectItem(data, "group_openid"));
         if (!id || id[0] == '\0') {
             return ESP_ERR_INVALID_ARG;
         }
-        snprintf(chat_id, sizeof(chat_id), "group:%s", id);
+        snprintf(chat_type, sizeof(chat_type), "group");
+        snprintf(chat_id, sizeof(chat_id), "%s", id);
     } else if (strcmp(event_type, "AT_MESSAGE_CREATE") == 0) {
         id = cJSON_GetStringValue(cJSON_GetObjectItem(data, "channel_id"));
         if (!id || id[0] == '\0') {
             return ESP_ERR_INVALID_ARG;
         }
-        snprintf(chat_id, sizeof(chat_id), "channel:%s", id);
+        snprintf(chat_type, sizeof(chat_type), "channel");
+        snprintf(chat_id, sizeof(chat_id), "%s", id);
     } else {
         return ESP_ERR_NOT_FOUND;
     }
@@ -573,6 +550,7 @@ static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, e
     memset(msg, 0, sizeof(*msg));
     snprintf(msg->channel, sizeof(msg->channel), "%s", g_ec_channel_qq);
     snprintf(msg->chat_id, sizeof(msg->chat_id), "%s", chat_id);
+    snprintf(msg->chat_type, sizeof(msg->chat_type), "%s", chat_type);
     msg->content = strdup(content);
     if (!msg->content) {
         return ESP_ERR_NO_MEM;
@@ -581,73 +559,33 @@ static esp_err_t qq_decode_dispatch_event(const char *event_type, cJSON *data, e
     return ESP_OK;
 }
 
-static bool qq_parse_chat_id(const char *chat_id, qq_target_kind_t *kind, char *id_buf, size_t id_buf_size)
-{
-    const char *id = NULL;
-    qq_target_kind_t local_kind = QQ_TARGET_KIND_NONE;
 
-    if (!chat_id || !id_buf || id_buf_size == 0 || !ec_channel_validate_chat_id(g_ec_channel_qq, chat_id)) {
+static bool qq_build_api_path(const ec_msg_t *msg, char *path, size_t path_size)
+{
+    if (!msg || !path || path_size == 0 ||
+            msg->chat_id[0] == '\0' || msg->chat_type[0] == '\0') {
         return false;
     }
 
-    if (strncmp(chat_id, "c2c:", 4) == 0) {
-        id = chat_id + 4;
-        local_kind = QQ_TARGET_KIND_C2C;
-    } else if (strncmp(chat_id, "group:", 6) == 0) {
-        id = chat_id + 6;
-        local_kind = QQ_TARGET_KIND_GROUP;
-    } else if (strncmp(chat_id, "channel:", 8) == 0) {
-        id = chat_id + 8;
-        local_kind = QQ_TARGET_KIND_CHANNEL;
+    if (strcmp(msg->chat_type, "c2c") == 0) {
+        snprintf(path, path_size, "/v2/users/%s/messages", msg->chat_id);
+    } else if (strcmp(msg->chat_type, "group") == 0) {
+        snprintf(path, path_size, "/v2/groups/%s/messages", msg->chat_id);
+    } else if (strcmp(msg->chat_type, "channel") == 0) {
+        snprintf(path, path_size, "/channels/%s/messages", msg->chat_id);
     } else {
         return false;
     }
 
-    snprintf(id_buf, id_buf_size, "%s", id);
-    if (kind) {
-        *kind = local_kind;
-    }
     return true;
 }
 
-static bool qq_build_api_path(const char *chat_id, char *path, size_t path_size, qq_target_kind_t *kind_out)
-{
-    qq_target_kind_t kind;
-    char target_id[64];
-
-    if (!path || path_size == 0 || !qq_parse_chat_id(chat_id, &kind, target_id, sizeof(target_id))) {
-        return false;
-    }
-
-    switch (kind) {
-    case QQ_TARGET_KIND_C2C:
-        snprintf(path, path_size, "/v2/users/%s/messages", target_id);
-        break;
-
-    case QQ_TARGET_KIND_GROUP:
-        snprintf(path, path_size, "/v2/groups/%s/messages", target_id);
-        break;
-
-    case QQ_TARGET_KIND_CHANNEL:
-        snprintf(path, path_size, "/channels/%s/messages", target_id);
-        break;
-
-    default:
-        return false;
-    }
-
-    if (kind_out) {
-        *kind_out = kind;
-    }
-    return true;
-}
-
-static char *qq_build_message_body_alloc(qq_target_kind_t kind, const ec_msg_t *msg)
+static char *qq_build_message_body_alloc(const ec_msg_t *msg)
 {
     cJSON *body;
     char *body_str;
 
-    if (!msg || !msg->content || msg->content[0] == '\0') {
+    if (!msg || !msg->content || msg->content[0] == '\0' || msg->chat_type[0] == '\0') {
         return NULL;
     }
 
@@ -657,10 +595,11 @@ static char *qq_build_message_body_alloc(qq_target_kind_t kind, const ec_msg_t *
     }
 
     cJSON_AddStringToObject(body, "content", msg->content);
-    if (kind == QQ_TARGET_KIND_C2C || kind == QQ_TARGET_KIND_GROUP) {
+    if (strcmp(msg->chat_type, "channel") != 0) {
         cJSON_AddNumberToObject(body, "msg_type", 0);
         cJSON_AddNumberToObject(body, "msg_seq", 1);
     }
+
 
     body_str = cJSON_PrintUnformatted(body);
     cJSON_Delete(body);
@@ -669,7 +608,6 @@ static char *qq_build_message_body_alloc(qq_target_kind_t kind, const ec_msg_t *
 
 static bool qq_post_message(const ec_msg_t *msg)
 {
-    qq_target_kind_t kind;
     char path[96];
     char url[QQ_GATEWAY_URL_MAX];
     char auth[QQ_ACCESS_TOKEN_MAX + 16];
@@ -680,11 +618,12 @@ static bool qq_post_message(const ec_msg_t *msg)
     char *body_str = NULL;
     bool ok = false;
 
-    if (!msg || !msg->content || msg->content[0] == '\0') {
+    if (!msg || !msg->content || msg->content[0] == '\0' ||
+            msg->chat_id[0] == '\0' || msg->chat_type[0] == '\0') {
         return false;
     }
 
-    if (!qq_build_api_path(msg->chat_id, path, sizeof(path), &kind)) {
+    if (!qq_build_api_path(msg, path, sizeof(path))) {
         return false;
     }
 
@@ -693,7 +632,7 @@ static bool qq_post_message(const ec_msg_t *msg)
     }
 
     snprintf(url, sizeof(url), "%s%s", QQ_API_BASE, path);
-    body_str = qq_build_message_body_alloc(kind, msg);
+    body_str = qq_build_message_body_alloc(msg);
     if (!body_str) {
         return false;
     }
@@ -773,6 +712,9 @@ static void handle_ws_event(void *arg, esp_event_base_t base, int32_t event_id, 
             ESP_LOGW(TAG, "Ignoring fragmented QQ websocket frame");
             break;
         }
+
+        ESP_LOGI(TAG, "QQ WS: full payload (%u bytes):", (unsigned)data->data_len);
+        ESP_LOGI(TAG, "%.*s", (int)data->data_len, data->data_ptr);
 
         root = cJSON_ParseWithLength(data->data_ptr, (size_t)data->data_len);
         if (!root) {
@@ -949,7 +891,7 @@ static esp_err_t ec_channel_qq_start(void)
 
 static esp_err_t ec_channel_qq_send(const ec_msg_t *msg)
 {
-    if (!msg || !ec_channel_validate_chat_id(g_ec_channel_qq, msg->chat_id)) {
+    if (!msg) {
         return ESP_ERR_INVALID_ARG;
     }
 

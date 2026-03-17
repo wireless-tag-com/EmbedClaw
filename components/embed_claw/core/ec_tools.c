@@ -50,6 +50,19 @@ esp_err_t ec_tools_register_all(void)
 
 esp_err_t ec_tools_register(const ec_tools_t *tool)
 {
+    if (!tool || !tool->name || tool->name[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    for (size_t i = 0; i < _EC_TOOLS_ENMU_MAX; i++) {
+        if (!s_tools[i]) {
+            continue;
+        }
+        if (s_tools[i] == tool || strcmp(s_tools[i]->name, tool->name) == 0) {
+            return ESP_OK;
+        }
+    }
+
     for (size_t i = 0; i < _EC_TOOLS_ENMU_MAX; i++) {
         if (!s_tools[i]) {
             s_tools[i] = tool;

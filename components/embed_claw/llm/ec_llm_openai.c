@@ -91,7 +91,6 @@ static const ec_llm_provider_vtable_t ec_llm_openai_vtable = {
 
 ec_llm_provider_t  *ec_llm_openai_get_provider(void)
 {
-    s_provider.name = "openai";
     s_provider.instance.url = NULL;
     s_provider.instance.api_key = NULL;
     s_provider.instance.model = NULL;

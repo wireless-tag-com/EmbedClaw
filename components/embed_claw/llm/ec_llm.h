@@ -37,7 +37,7 @@ typedef enum {
 
 typedef struct {
     char id[64];
-    char name[32];
+    char name[64];
     int index;
     char *input;
     size_t input_len;

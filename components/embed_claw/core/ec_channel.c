@@ -32,7 +32,6 @@
 
 static bool channel_names_equal(const char *lhs, const char *rhs);
 static const ec_channel_t *find_channel(const char *channel);
-static bool string_has_prefix(const char *text, const char *prefix);
 
 /* ==================== [Static Variables] ================================== */
 
@@ -116,35 +115,6 @@ esp_err_t ec_channel_send(const ec_msg_t *msg)
     return driver->vtable.send(msg);
 }
 
-bool ec_channel_validate_chat_id(const char *channel, const char *chat_id)
-{
-    const char *id = NULL;
-
-    if (!channel || channel[0] == '\0' || !chat_id || chat_id[0] == '\0') {
-        return false;
-    }
-
-    if (channel_names_equal(channel, g_ec_channel_feishu)) {
-        return (string_has_prefix(chat_id, "open_id:") && chat_id[8] != '\0') ||
-               (string_has_prefix(chat_id, "chat_id:") && chat_id[8] != '\0');
-    }
-
-    if (channel_names_equal(channel, g_ec_channel_qq)) {
-        if (string_has_prefix(chat_id, "c2c:")) {
-            id = chat_id + 4;
-        } else if (string_has_prefix(chat_id, "group:")) {
-            id = chat_id + 6;
-        } else if (string_has_prefix(chat_id, "channel:")) {
-            id = chat_id + 8;
-        } else {
-            return false;
-        }
-
-        return id[0] != '\0';
-    }
-
-    return true;
-}
 
 /* ==================== [Static Functions] ================================== */
 
@@ -170,19 +140,4 @@ static const ec_channel_t *find_channel(const char *channel)
     }
 
     return NULL;
-}
-
-static bool string_has_prefix(const char *text, const char *prefix)
-{
-    if (!text || !prefix) {
-        return false;
-    }
-
-    while (*prefix) {
-        if (*text++ != *prefix++) {
-            return false;
-        }
-    }
-
-    return true;
 }

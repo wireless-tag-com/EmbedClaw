@@ -28,6 +28,7 @@
 typedef struct {
     int fd;
     char chat_id[32];
+    char chat_type[16];
     bool active;
 } ws_client_t;
 
@@ -35,7 +36,7 @@ typedef struct {
 /* ==================== [Static Prototypes] ================================= */
 
 static ws_client_t *find_client_by_fd(int fd);
-static ws_client_t *find_client_by_chat_id(const char *chat_id);
+static ws_client_t *find_client_for_msg(const ec_msg_t *msg);
 static ws_client_t *add_client(int fd);
 static void remove_client(int fd);
 static esp_err_t ws_handler(httpd_req_t *req);
@@ -83,12 +84,23 @@ static ws_client_t *find_client_by_fd(int fd)
     return NULL;
 }
 
-static ws_client_t *find_client_by_chat_id(const char *chat_id)
+static ws_client_t *find_client_for_msg(const ec_msg_t *msg)
 {
+    if (!msg || msg->chat_id[0] == '\0') {
+        return NULL;
+    }
+
     for (int i = 0; i < EC_WS_MAX_CLIENTS; i++) {
-        if (s_clients[i].active && strcmp(s_clients[i].chat_id, chat_id) == 0) {
-            return &s_clients[i];
+        if (!s_clients[i].active || strcmp(s_clients[i].chat_id, msg->chat_id) != 0) {
+            continue;
         }
+
+        if (msg->chat_type[0] != '\0' && s_clients[i].chat_type[0] != '\0' &&
+                strcmp(s_clients[i].chat_type, msg->chat_type) != 0) {
+            continue;
+        }
+
+        return &s_clients[i];
     }
     return NULL;
 }
@@ -97,6 +109,7 @@ static ws_client_t *add_client(int fd)
 {
     for (int i = 0; i < EC_WS_MAX_CLIENTS; i++) {
         if (!s_clients[i].active) {
+            memset(&s_clients[i], 0, sizeof(s_clients[i]));
             s_clients[i].fd = fd;
             snprintf(s_clients[i].chat_id, sizeof(s_clients[i].chat_id), "ws_%d", fd);
             s_clients[i].active = true;
@@ -113,7 +126,7 @@ static void remove_client(int fd)
     for (int i = 0; i < EC_WS_MAX_CLIENTS; i++) {
         if (s_clients[i].active && s_clients[i].fd == fd) {
             ESP_LOGI(TAG, "Client disconnected: %s", s_clients[i].chat_id);
-            s_clients[i].active = false;
+            memset(&s_clients[i], 0, sizeof(s_clients[i]));
             return;
         }
     }
@@ -197,9 +210,10 @@ static esp_err_t ec_channel_ws_send(const ec_msg_t *msg)
 {
     if (!s_server) return ESP_ERR_INVALID_STATE;
 
-    ws_client_t *client = find_client_by_chat_id(msg->chat_id);
+    ws_client_t *client = find_client_for_msg(msg);
     if (!client) {
-        ESP_LOGW(TAG, "No WS client with chat_id=%s", msg->chat_id);
+        ESP_LOGW(TAG, "No WS client with chat_type=%s chat_id=%s",
+                 msg->chat_type, msg->chat_id);
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -233,8 +247,10 @@ static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *m
     cJSON *content;
     cJSON *chan;
     cJSON *cid;
+    cJSON *chat_type_item;
     const char *target_channel;
     const char *chat_id;
+    const char *chat_type;
 
     if (!payload_json || !msg) {
         return ESP_ERR_INVALID_ARG;
@@ -259,18 +275,32 @@ static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *m
                      ? chan->valuestring
                      : g_ec_channel_ws;
 
-    chat_id = client ? client->chat_id : "ws_unknown";
     cid = cJSON_GetObjectItem(root, "chat_id");
-    if (cid && cJSON_IsString(cid)) {
+    chat_type_item = cJSON_GetObjectItem(root, "chat_type");
+    if (strcmp(target_channel, g_ec_channel_ws) != 0) {
+        if (!cid || !cJSON_IsString(cid) || !cid->valuestring || cid->valuestring[0] == '\0' ||
+                !chat_type_item || !cJSON_IsString(chat_type_item) ||
+                !chat_type_item->valuestring || chat_type_item->valuestring[0] == '\0') {
+            cJSON_Delete(root);
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
+
+    chat_id = client ? client->chat_id : "ws_unknown";
+    if (cid && cJSON_IsString(cid) && cid->valuestring && cid->valuestring[0] != '\0') {
         chat_id = cid->valuestring;
         if (client && strcmp(target_channel, g_ec_channel_ws) == 0) {
             strncpy(client->chat_id, chat_id, sizeof(client->chat_id) - 1);
         }
     }
 
-    if (!ec_channel_validate_chat_id(target_channel, chat_id)) {
-        cJSON_Delete(root);
-        return ESP_ERR_INVALID_ARG;
+    chat_type = client ? client->chat_type : "unknown";
+    if (chat_type_item && cJSON_IsString(chat_type_item) &&
+            chat_type_item->valuestring && chat_type_item->valuestring[0] != '\0') {
+        chat_type = chat_type_item->valuestring;
+        if (client && strcmp(target_channel, g_ec_channel_ws) == 0) {
+            strncpy(client->chat_type, chat_type, sizeof(client->chat_type) - 1);
+        }
     }
 
     ESP_LOGI(TAG, "WS message from %s (%s): %.40s...",
@@ -279,6 +309,7 @@ static esp_err_t ws_decode_message(int fd, const char *payload_json, ec_msg_t *m
     memset(msg, 0, sizeof(*msg));
     strncpy(msg->channel, target_channel, sizeof(msg->channel) - 1);
     strncpy(msg->chat_id, chat_id, sizeof(msg->chat_id) - 1);
+    strncpy(msg->chat_type, chat_type, sizeof(msg->chat_type) - 1);
     msg->content = strdup(content->valuestring);
     cJSON_Delete(root);
 
@@ -306,6 +337,7 @@ static char *ws_build_response_json_alloc(const ec_msg_t *msg)
     cJSON_AddStringToObject(resp, "type", "response");
     cJSON_AddStringToObject(resp, "content", msg->content);
     cJSON_AddStringToObject(resp, "chat_id", msg->chat_id);
+    cJSON_AddStringToObject(resp, "chat_type", msg->chat_type);
 
     json_str = cJSON_PrintUnformatted(resp);
     cJSON_Delete(resp);

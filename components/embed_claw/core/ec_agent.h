@@ -26,9 +26,10 @@ extern "C" {
 /* ==================== [Typedefs] ========================================== */
 
 typedef struct {
-    char channel[16];       /* Channel name such as g_ec_channel_ws/g_ec_channel_qq */
-    char chat_id[64];       /* Channel-specific id (feishu/qq target id, WS client id) */
-    char *content;          /* Heap-allocated message text (caller must free) */
+    char channel[16];     
+    char chat_type[16];
+    char chat_id[64];  
+    char *content;    
 } ec_msg_t;
 
 /* ==================== [Global Prototypes] ================================= */
@@ -52,17 +53,6 @@ esp_err_t ec_agent_start(void);
  *  - ESP_ERR_NO_MEM 入站队列已满，无法添加消息
  */
 esp_err_t ec_agent_inbound(const ec_msg_t *msg);
-
-/**
- * @brief 从Agent Loop的出站队列获取消息
- * 
- * @param msg 消息内容，caller负责msg->content的内存管理（调用后需要free）
- * @param timeout_ms 超时时间（毫秒）
- * @return esp_err_t 
- *  - ESP_OK 成功
- *  - ESP_ERR_TIMEOUT 超时，未获取到消息
- */
-esp_err_t ec_agent_outbound(ec_msg_t *msg, uint32_t timeout_ms);
 
 /* ==================== [Macros] ============================================ */
 

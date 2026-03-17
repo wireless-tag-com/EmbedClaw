@@ -96,7 +96,6 @@ static void process_ws_event_payload(const char *payload, size_t payload_len);
 static void feishu_event_worker_task(void *arg);
 static void handle_ws_event(void *arg, esp_event_base_t base, int32_t event_id, void *event_data);
 static void feishu_ws_task(void *arg);
-static void parse_chat_id(const char *chat_id, char *out_type, size_t type_len, char *out_id, size_t id_len);
 static void token_refresh_task(void *arg);
 
 static esp_err_t ec_channel_feishu_start(void);
@@ -688,6 +687,7 @@ static void process_ws_event_payload(const char *payload, size_t payload_len)
     }
 
     char *text = NULL;
+    char reply_chat_type[16] = {0};
     char reply_chat_id[64] = {0};
 
     cJSON *header = cJSON_GetObjectItem(root, "header");
@@ -789,17 +789,21 @@ static void process_ws_event_payload(const char *payload, size_t payload_len)
     }
 
     if (strcmp(chat_type_buf, "p2p") == 0 && open_id_buf[0]) {
-        snprintf(reply_chat_id, sizeof(reply_chat_id), "open_id:%s", open_id_buf);
+        snprintf(reply_chat_id, sizeof(reply_chat_id), "%s", open_id_buf);
+        snprintf(reply_chat_type, sizeof(reply_chat_type), "open_id");
     } else if (chat_id_buf[0]) {
-        snprintf(reply_chat_id, sizeof(reply_chat_id), "chat_id:%s", chat_id_buf);
+        snprintf(reply_chat_id, sizeof(reply_chat_id), "%s", chat_id_buf);
+        snprintf(reply_chat_type, sizeof(reply_chat_type), "chat_id");
     } else if (open_id_buf[0]) {
-        snprintf(reply_chat_id, sizeof(reply_chat_id), "open_id:%s", open_id_buf);
+        snprintf(reply_chat_id, sizeof(reply_chat_id), "%s", open_id_buf);
+        snprintf(reply_chat_type, sizeof(reply_chat_type), "open_id");
     } else {
         goto ws_data_done;
     }
 
     ec_msg_t msg = {0};
     strncpy(msg.channel, g_ec_channel_feishu, sizeof(msg.channel) - 1);
+    strncpy(msg.chat_type, reply_chat_type, sizeof(msg.chat_type) - 1);
     strncpy(msg.chat_id, reply_chat_id, sizeof(msg.chat_id) - 1);
     msg.content = text;
     ESP_LOGI(TAG, "Feishu WS: pushing to agent chat_id=%s content_len=%d", reply_chat_id, (int)strlen(text));
@@ -974,27 +978,6 @@ static void feishu_ws_task(void *arg)
     }
 }
 
-
-/* Parse chat_id in form "open_id:ou_xxx" or "chat_id:oc_xxx"; return receive_id_type and receive_id */
-static void parse_chat_id(const char *chat_id, char *out_type, size_t type_len, char *out_id, size_t id_len)
-{
-    out_type[0] = '\0';
-    out_id[0] = '\0';
-    const char *colon = strchr(chat_id, ':');
-    if (!colon || colon == chat_id) {
-        return;
-    }
-    size_t pre_len = (size_t)(colon - chat_id);
-    if (pre_len >= type_len) {
-        return;
-    }
-    memcpy(out_type, chat_id, pre_len);
-    out_type[pre_len] = '\0';
-    const char *id = colon + 1;
-    strncpy(out_id, id, id_len - 1);
-    out_id[id_len - 1] = '\0';
-}
-
 static void token_refresh_task(void *arg)
 {
     (void)arg;
@@ -1051,9 +1034,11 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     }
 
     const char *chat_id = msg->chat_id;
+    const char *chat_type = msg->chat_type;
     const char *text = msg->content;
 
-    if (!chat_id || !text)
+    if (!chat_id || !chat_type || !text ||
+            chat_id[0] == '\0' || chat_type[0] == '\0' || text[0] == '\0')
     {
         return ESP_ERR_INVALID_ARG;
     }
@@ -1061,13 +1046,6 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     if (!ensure_token()) {
         ESP_LOGE(TAG, "Failed to get tenant token");
         return ESP_FAIL;
-    }
-
-    char id_type[16], receive_id[64];
-    parse_chat_id(chat_id, id_type, sizeof(id_type), receive_id, sizeof(receive_id));
-    if (!id_type[0] || !receive_id[0]) {
-        ESP_LOGE(TAG, "Invalid chat_id format (need open_id:ou_xxx or chat_id:oc_xxx)");
-        return ESP_ERR_INVALID_ARG;
     }
 
     /* Escape text for JSON: only " and \ need escape */
@@ -1097,11 +1075,10 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     }
 
     cJSON *body = cJSON_CreateObject();
-    cJSON_AddStringToObject(body, "receive_id", receive_id);
+    cJSON_AddStringToObject(body, "receive_id", chat_id);
     cJSON_AddStringToObject(body, "msg_type", "text");
     cJSON_AddStringToObject(body, "content", content_json);
     char *body_str = cJSON_PrintUnformatted(body);
-    ESP_LOGI(TAG, "Sending message to Feishu (chat_id=%s, text=%.*s)", chat_id, (int)chunk, text);
     cJSON_Delete(body);
     free(content_json);
     if (!body_str) {
@@ -1109,7 +1086,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     }
 
     char url[128];
-    snprintf(url, sizeof(url), "%s?receive_id_type=%s", FEISHU_MSG_URL, id_type);
+    snprintf(url, sizeof(url), "%s?receive_id_type=%s", FEISHU_MSG_URL, chat_type);
 
     http_resp_t resp = { .buf = calloc(1, 2048), .len = 0, .cap = 2048 };
     if (!resp.buf) {
@@ -1149,7 +1126,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
             cJSON *code = cJSON_GetObjectItem(root, "code");
             if (cJSON_IsNumber(code) && code->valueint == 0) {
                 ret = ESP_OK;
-                ESP_LOGI(TAG, "Feishu send ok to %s", receive_id);
+                ESP_LOGI(TAG, "Feishu send ok to %s", chat_id);
             } else {
                 cJSON *msg = cJSON_GetObjectItem(root, "msg");
                 ESP_LOGE(TAG, "Feishu send failed: %s", msg && cJSON_IsString(msg) ? msg->valuestring : "unknown");
