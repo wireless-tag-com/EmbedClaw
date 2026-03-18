@@ -6,7 +6,7 @@
 
 **把 LLM、Tools、Agent、Channel 彻底拆开，再把它们装进一块 ESP32-S3。**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-ff6a00)![LLM](https://img.shields.io/badge/LLM-Qwen%20via%20DashScope-0f766e)![Channel](https://img.shields.io/badge/Channel-Feishu%20%7C%20WebSocket%20%7C%20QQBot-2563eb)![Search](https://img.shields.io/badge/Search-Tavily-111827)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) ![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-ff6a00) ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.5.2-00979D) ![LLM](https://img.shields.io/badge/LLM-Qwen%20via%20DashScope-0f766e) ![Channel](https://img.shields.io/badge/Channel-Feishu%20%7C%20WebSocket%20%7C%20QQBot-2563eb) ![Search](https://img.shields.io/badge/Search-Tavily-111827)
 
 </div>
 
@@ -184,6 +184,7 @@ EmbedClaw 使用 SPIFFS 保存人格、用户信息、会话与记忆：
 - `PSRAM`（当前工程默认启用）
 - USB 数据线
 - 已安装好的 `ESP-IDF 5.x`
+- 推荐版本：`ESP-IDF v5.5.2`（当前主要验证基线）
 
 工程默认目标芯片为 `esp32s3`，并通过 `spiffs_create_partition_image` 在构建时打包 `spiffs_data/`。
 

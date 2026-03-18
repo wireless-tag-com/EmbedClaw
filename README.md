@@ -6,7 +6,7 @@
 
 **Decouple LLM, Tools, Agent, and Channels—then pack them onto a single ESP32-S3.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-ff6a00)![LLM](https://img.shields.io/badge/LLM-Qwen%20via%20DashScope-0f766e)![Channel](https://img.shields.io/badge/Channel-Feishu%20%7C%20WebSocket%20%7C%20QQBot-2563eb)![Search](https://img.shields.io/badge/Search-Tavily-111827)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) ![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-ff6a00) ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.5.2-00979D) ![LLM](https://img.shields.io/badge/LLM-Qwen%20via%20DashScope-0f766e) ![Channel](https://img.shields.io/badge/Channel-Feishu%20%7C%20WebSocket%20%7C%20QQBot-2563eb) ![Search](https://img.shields.io/badge/Search-Tavily-111827)
 
 </div>
 
@@ -185,6 +185,7 @@ You’ll need:
 - **PSRAM** (enabled by default in this project)
 - USB cable
 - **ESP-IDF 5.x** installed
+- **Recommended version: ESP-IDF v5.5.2** (current validated baseline)
 
 The default target is `esp32s3`. The build packs `spiffs_data/` with `spiffs_create_partition_image`.
 
