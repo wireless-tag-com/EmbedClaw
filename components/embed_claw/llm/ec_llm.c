@@ -16,6 +16,8 @@
 #include "ec_llm_openai.h"
 #include "esp_log.h"
 
+#include <string.h>
+
 /* ==================== [Defines] =========================================== */
 
 /* ==================== [Typedefs] ========================================== */
@@ -26,43 +28,59 @@
 
 static const char *tag = "ec_llm";
 
-static ec_llm_provider_t  *s_providers = NULL;
+static ec_llm_provider_t *s_providers = NULL;
 
 /* ==================== [Macros] ============================================ */
 
 /* ==================== [Global Functions] ================================== */
 
-esp_err_t ec_llm_init(llm_type_t llm_type, const ec_llm_provider_ctx_t* provider_ctx)
+esp_err_t ec_llm_init_default(const ec_llm_provider_ctx_t *provider_ctx)
 {
+    esp_err_t err;
+
     if (!provider_ctx) {
         ESP_LOGE(tag, "LLM init failed: provider_ctx must be provided");
         return ESP_ERR_INVALID_ARG;
     }
 
-    switch (llm_type) {
-    case LLM_TYPE_OPENAI:
+    if (strcmp(EC_LLM_PROVIDER_NAME, "openai") == 0) {
         s_providers = ec_llm_openai_get_provider();
-        break;
-
-    default:
-        ESP_LOGE(tag, "Unsupported LLM type");
+    }
+    // TODO: 添加更多LLM
+    else {
+        ESP_LOGE(tag, "Unsupported LLM provider '%s' (supported: openai)",
+                 EC_LLM_PROVIDER_NAME ? EC_LLM_PROVIDER_NAME : "(null)");
         return ESP_ERR_INVALID_ARG;
-        break;
     }
 
-    s_providers->vtable->init(s_providers, provider_ctx);
+    if (!s_providers || !s_providers->vtable || !s_providers->vtable->init ||
+            !s_providers->vtable->chat_tools) {
+        ESP_LOGE(tag, "LLM provider '%s' is not available",
+                 EC_LLM_PROVIDER_NAME ? EC_LLM_PROVIDER_NAME : "(null)");
+        s_providers = NULL;
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    err = s_providers->vtable->init(s_providers, provider_ctx);
+    if (err != ESP_OK) {
+        ESP_LOGE(tag, "LLM provider '%s' init failed: %s",
+                 EC_LLM_PROVIDER_NAME ? EC_LLM_PROVIDER_NAME : "(null)",
+                 esp_err_to_name(err));
+        s_providers = NULL;
+        return err;
+    }
 
     return ESP_OK;
 }
 
-esp_err_t ec_llm_chat_tools(const char *system_prompt, cJSON *messages, const char *tools_json, ec_llm_response_t *resp)
+esp_err_t ec_llm_chat_tools(const char *system_prompt, cJSON *messages,
+                            const char *tools_json, ec_llm_response_t *resp)
 {
-    if (!s_providers)
-    {
+    if (!s_providers || !s_providers->vtable || !s_providers->vtable->chat_tools) {
         ESP_LOGE(tag, "LLM provider not initialized");
         return ESP_ERR_INVALID_STATE;
     }
-    
+
     if (!system_prompt || !messages || !resp) {
         ESP_LOGE(tag, "Invalid arguments to ec_llm_chat_tools");
         return ESP_ERR_INVALID_ARG;

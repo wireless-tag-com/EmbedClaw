@@ -1,21 +1,10 @@
 idf_component_register(
-    SRCS
-        "core/ec_agent.c"
-        "core/ec_channel.c"
-        "core/ec_memory.c"
-        "core/ec_skill_loader.c"
-        "core/ec_tools.c"
-        "core/ec_session.c"
-        "llm/ec_llm.c"
-        "llm/ec_llm_openai.c"
-        "tools/tools_cron.c"
-        "tools/tools_files.c"
-        "tools/tools_get_time.c"
-        "tools/tools_web_search.c"
-        "channel/ec_channel_feishu.c"
-        "channel/ec_channel_qq.c"
-        "channel/ec_channel_ws.c"
-        "embed_claw.c"
+    SRC_DIRS
+        "."
+        "core"
+        "llm"
+        "tools"
+        "channel"
     INCLUDE_DIRS
         "."
     REQUIRES

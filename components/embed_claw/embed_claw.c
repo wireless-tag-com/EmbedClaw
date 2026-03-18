@@ -49,7 +49,7 @@ esp_err_t ec_embed_claw_start(void)
     ESP_ERROR_CHECK(ec_channel_register_all());
     ESP_ERROR_CHECK(ec_skill_loader_init());
     ESP_ERROR_CHECK(ec_tools_register_all());
-    ESP_ERROR_CHECK(ec_llm_init(LLM_TYPE_OPENAI, &s_llm_provider_ctx));
+    ESP_ERROR_CHECK(ec_llm_init_default(&s_llm_provider_ctx));
     ESP_ERROR_CHECK(ec_agent_start());
     ESP_ERROR_CHECK(ec_channel_start());
 
@@ -59,4 +59,3 @@ esp_err_t ec_embed_claw_start(void)
 }
 
 /* ==================== [Static Functions] ================================== */
-

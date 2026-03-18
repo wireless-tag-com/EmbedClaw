@@ -1,7 +1,6 @@
 idf_component_register(
-    SRCS
-       "main.c"
-       "wifi_connect.cpp"
+    SRC_DIRS
+       "."
     INCLUDE_DIRS
         "."
     REQUIRES
