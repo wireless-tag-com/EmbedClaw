@@ -11,16 +11,17 @@ TEST_CASE("llm layer rejects invalid setup and uninitialized use", "[embed_claw]
 {
     cJSON *messages = cJSON_CreateArray();
     ec_llm_response_t resp = {0};
+    ec_llm_provider_ctx_t provider_ctx = {
+        .url = "https://example.com",
+        .api_key = "test",
+        .model = "test",
+    };
 
-    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG, ec_llm_init(LLM_TYPE_OPENAI, NULL));
-    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG,
-                      ec_llm_init((llm_type_t)99, &(ec_llm_provider_ctx_t) {
-                          .url = "https://example.com",
-                          .api_key = "test",
-                          .model = "test",
-                      }));
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE,
                       ec_llm_chat_tools("system", messages, "[]", &resp));
+
+    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG, ec_llm_init_default(NULL));
+    TEST_ASSERT_EQUAL(ESP_OK, ec_llm_init_default(&provider_ctx));
 
     cJSON_Delete(messages);
 }
