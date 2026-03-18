@@ -621,7 +621,7 @@ esp_err_t ec_channel_demo(void)
 
 当前默认实际启用的是：
 
-- `LLM_TYPE_OPENAI`
+- `EC_LLM_PROVIDER_NAME`（默认：`openai`）
 - DashScope OpenAI-Compatible 接口
 - `qwen-plus`
 
@@ -629,12 +629,10 @@ esp_err_t ec_channel_demo(void)
 
 1. 参考 `components/embed_claw/llm/ec_llm_internal.h`
 2. 新建 `ec_llm_xxx.c/.h`
-3. 实现 Provider 的：
-   - `init`
-   - `chat_tools`
-4. 把第三方响应解析成统一的 `ec_llm_response_t`
-5. 在 `ec_llm.c` 的 `switch` 中接入新类型
-6. 在系统启动时选择对应 Provider
+3. 在新 Provider 模块导出 `ec_llm_xxx_get_provider(void)`
+4. 实现 Provider 的 `init`、`chat_tools`，并把响应解析为统一的 `ec_llm_response_t`
+5. 在 `ec_llm.c` 的 `ec_llm_init_default()` 中加一条 provider 名称到 getter 的映射分支
+6. 在 `main/ec_config.h` 里设置 `EC_LLM_PROVIDER_NAME`（并配套 URL / model）
 
 补充说明：
 
@@ -654,6 +652,7 @@ esp_err_t ec_channel_demo(void)
 在正式运行前，请先填写：
 
 - DashScope / Qwen API Key
+- `EC_LLM_PROVIDER_NAME`（默认是 `openai`）
 - Tavily API Key
 - Feishu App ID / Secret
 

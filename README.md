@@ -590,7 +590,7 @@ esp_err_t ec_channel_demo(void)
 
 Currently used:
 
-- **LLM_TYPE_OPENAI**
+- `EC_LLM_PROVIDER_NAME` (default: `openai`)
 - DashScope OpenAI-compatible API
 - **qwen-plus**
 
@@ -598,11 +598,12 @@ To add another provider:
 
 1. See `components/embed_claw/llm/ec_llm_internal.h`
 2. Add `ec_llm_xxx.c` / `.h`
-3. Implement `init` and `chat_tools`
-4. Map the provider’s response to `ec_llm_response_t`
-5. Wire the new type in `ec_llm.c` and select it at startup
+3. Export `ec_llm_xxx_get_provider(void)` from the new provider module
+4. Implement `init` and `chat_tools`, and map the response to `ec_llm_response_t`
+5. Add one branch in `ec_llm_init_default()` (`components/embed_claw/llm/ec_llm.c`) to map provider name to getter
+6. Set `EC_LLM_PROVIDER_NAME` in `main/ec_config.h` (and set matching URL/model)
 
-The current runtime path is OpenAI-compatible providers (OpenAI, DeepSeek, Moonshot, Qwen, etc.); `LLM_TYPE_ANTHROPIC` is declared but not wired to a provider implementation yet.
+The current runtime path is OpenAI-compatible providers (OpenAI, DeepSeek, Moonshot, Qwen, etc.). Other provider families are not wired yet.
 
 ## Possible next steps
 
@@ -617,6 +618,7 @@ For open-source distribution, repo defaults keep secret fields empty. Put real k
 Before running, set:
 
 - DashScope / Qwen API key  
+- `EC_LLM_PROVIDER_NAME` (default is `openai`)
 - Tavily API key  
 - Feishu App ID and App Secret  
 
