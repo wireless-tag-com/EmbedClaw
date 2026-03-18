@@ -30,18 +30,18 @@
 
 /* ==================== [Defines] =========================================== */
 
-#define TOOL_RESULT_MAX_FOR_LLM 4096
+#define EC_AGENT_TOOL_RESULT_MAX_FOR_LLM 4096
 
-#define EC_TOOL_OUTPUT_SIZE  (4 * 1024)
+#define EC_AGENT_TOOL_OUTPUT_SIZE  (4 * 1024)
 #define EC_AGENT_PROMPT_SCRATCH_SIZE 4096
-#define EC_SESSION_KEY_MAX (sizeof(((ec_msg_t *)0)->channel) + \
+#define EC_AGENT_SESSION_KEY_MAX (sizeof(((ec_msg_t *)0)->channel) + \
                             sizeof(((ec_msg_t *)0)->chat_type) + \
                             sizeof(((ec_msg_t *)0)->chat_id) + 3)
 
-#define EC_CHANNEL_DELIVERY_TASK_STACK (8 * 1024)
-#define EC_CHANNEL_DELIVERY_TASK_PRIO  5
+#define EC_AGENT_CHANNEL_DELIVERY_TASK_STACK (8 * 1024)
+#define EC_AGENT_CHANNEL_DELIVERY_TASK_PRIO  5
 
-#define AGENT_SYSTEM_PROMPT_STR \
+#define EC_AGENT_SYSTEM_PROMPT_STR \
         "You are EmbedClaw, a helpful and concise AI assistant running on an ESP32 device.\n"\
         "You communicate via Feishu and WebSocket.\n"\
         "Reply briefly to short messages (e.g. 你好, 在吗, 谢谢).\n"\
@@ -92,8 +92,8 @@ static QueueHandle_t s_outbound_queue;
 
 esp_err_t ec_agent_start(void)
 {
-    s_inbound_queue = xQueueCreate(EC_BUS_QUEUE_LEN, sizeof(ec_msg_t));
-    s_outbound_queue = xQueueCreate(EC_BUS_QUEUE_LEN, sizeof(ec_msg_t));
+    s_inbound_queue = xQueueCreate(EC_AGENT_BUS_QUEUE_LEN, sizeof(ec_msg_t));
+    s_outbound_queue = xQueueCreate(EC_AGENT_BUS_QUEUE_LEN, sizeof(ec_msg_t));
 
     if (!s_inbound_queue || !s_outbound_queue) {
         ESP_LOGE(TAG, "Failed to create message queues");
@@ -110,8 +110,8 @@ esp_err_t ec_agent_start(void)
     }
 
     ret = xTaskCreate(channel_delivery_task, "channel_delivery",
-                      EC_CHANNEL_DELIVERY_TASK_STACK, NULL,
-                      EC_CHANNEL_DELIVERY_TASK_PRIO, NULL);
+                      EC_AGENT_CHANNEL_DELIVERY_TASK_STACK, NULL,
+                      EC_AGENT_CHANNEL_DELIVERY_TASK_PRIO, NULL);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "channel delivery task create failed");
         return ESP_FAIL;
@@ -328,7 +328,7 @@ static esp_err_t context_build_system_prompt(char *buf, size_t size)
     size_t off = 0;
     size_t cap = size - 1;
 
-    off += snprintf(buf + off, size - off, AGENT_SYSTEM_PROMPT_STR);
+    off += snprintf(buf + off, size - off, EC_AGENT_SYSTEM_PROMPT_STR);
     if (off > cap) {
         off = cap;
     }
@@ -415,14 +415,14 @@ static void agent_loop_task(void *arg)
     esp_err_t err = ESP_OK;
 
     char *final_text = NULL; // 存储最终文本回复，用于发送给用户
-    char *system_prompt = (char *)malloc(EC_CONTEXT_BUF_SIZE + EC_LLM_STREAM_BUF_SIZE + EC_TOOL_OUTPUT_SIZE);
+    char *system_prompt = (char *)malloc(EC_AGENT_CONTEXT_BUF_SIZE + EC_LLM_STREAM_BUF_SIZE + EC_AGENT_TOOL_OUTPUT_SIZE);
     if (!system_prompt) {
         ESP_LOGE(TAG, "Failed to allocate agent buffers");
         vTaskDelete(NULL);
         return;
     }
 
-    char *history_json = system_prompt + EC_CONTEXT_BUF_SIZE;
+    char *history_json = system_prompt + EC_AGENT_CONTEXT_BUF_SIZE;
     char *tool_output = history_json + EC_LLM_STREAM_BUF_SIZE;
 
     // 获取所有工具的 JSON 描述，供后续 LLM 调用时使用
@@ -432,7 +432,7 @@ static void agent_loop_task(void *arg)
         // 获取入站消息，统一进行处理
         // 该消息来源于ws、飞书等适配器，或者系统适配器（定时任务触发等）
         ec_msg_t msg = {0};
-        char session_key[EC_SESSION_KEY_MAX];
+        char session_key[EC_AGENT_SESSION_KEY_MAX];
         volatile bool sent_working_status = false;
 
         if (xQueueReceive(s_inbound_queue, &msg, UINT32_MAX) != pdTRUE) {
@@ -443,8 +443,8 @@ static void agent_loop_task(void *arg)
         build_session_key(&msg, session_key, sizeof(session_key));
 
         // 构建系统提示词，包含基本信息和当前消息的上下文（来源渠道、chat_id等）
-        context_build_system_prompt(system_prompt, EC_CONTEXT_BUF_SIZE);
-        append_turn_context_prompt(system_prompt, EC_CONTEXT_BUF_SIZE, &msg);
+        context_build_system_prompt(system_prompt, EC_AGENT_CONTEXT_BUF_SIZE);
+        append_turn_context_prompt(system_prompt, EC_AGENT_CONTEXT_BUF_SIZE, &msg);
         ESP_LOGI(TAG, "LLM turn context: channel=%s chat_type=%s chat_id=%s",
                  msg.channel, msg.chat_type, msg.chat_id);
 
@@ -504,7 +504,7 @@ static void agent_loop_task(void *arg)
             cJSON_AddItemToArray(messages, asst_msg);
 
             // 执行工具并将结果追加到消息数组中，供下一轮 LLM 调用使用
-            cJSON *tool_results = build_tool_results(&resp, &msg, tool_output, EC_TOOL_OUTPUT_SIZE);
+            cJSON *tool_results = build_tool_results(&resp, &msg, tool_output, EC_AGENT_TOOL_OUTPUT_SIZE);
             cJSON *result_msg = cJSON_CreateObject();
             cJSON_AddStringToObject(result_msg, "role", "user");
             cJSON_AddItemToObject(result_msg, "content", tool_results);

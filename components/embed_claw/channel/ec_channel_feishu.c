@@ -13,6 +13,8 @@
 
 #include "ec_config_internal.h"
 
+#if EC_FEISHU_ENABLE
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -35,20 +37,21 @@
 
 /* ==================== [Defines] =========================================== */
 
-#define FEISHU_TOKEN_LEN       512
-#define FEISHU_AUTH_URL        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
-#define FEISHU_MSG_URL         "https://open.feishu.cn/open-apis/im/v1/messages"
-#define FEISHU_ENDPOINT_URL    "https://open.feishu.cn/callback/ws/endpoint"
+#define EC_FEISHU_TOKEN_LEN       512
+#define EC_FEISHU_AUTH_URL        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+#define EC_FEISHU_MSG_URL         "https://open.feishu.cn/open-apis/im/v1/messages"
+#define EC_FEISHU_ENDPOINT_URL    "https://open.feishu.cn/callback/ws/endpoint"
 
-#define FEISHU_TASK_STACK      (8 * 1024)
-#define FEISHU_TASK_PRIO       5
-#define FEISHU_TASK_CORE       0
-#define FEISHU_MAX_MSG_LEN     1800
-#define FEISHU_WS_RECONNECT_MS 10000
-#define FEISHU_EVENT_QUEUE_LEN 16
+#define EC_FEISHU_TASK_STACK      (8 * 1024)
+#define EC_FEISHU_TASK_PRIO       5
+#define EC_FEISHU_TASK_CORE       0
+#define EC_FEISHU_MAX_MSG_LEN     1800
+#define EC_FEISHU_WS_URL_MAX      256
+#define EC_FEISHU_WS_RECONNECT_MS 10000
+#define EC_FEISHU_EVENT_QUEUE_LEN 16
 
-#define FEISHU_IGNORE_FIRST_N_MSGS          2
-#define FEISHU_LAST_EVENT_ID_N  32
+#define EC_FEISHU_IGNORE_FIRST_N_MSGS          2
+#define EC_FEISHU_LAST_EVENT_ID_N  32
 
 /* ==================== [Typedefs] ========================================== */
 
@@ -105,7 +108,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg);
 
 static const char *TAG = "feishu";
 
-static char s_tenant_token[FEISHU_TOKEN_LEN] = "";
+static char s_tenant_token[EC_FEISHU_TOKEN_LEN] = "";
 static int64_t s_token_expire_at_us = 0;
 static esp_websocket_client_handle_t s_ws_client = NULL;
 static char s_ws_url[EC_FEISHU_WS_URL_MAX] = "";
@@ -114,7 +117,7 @@ static int s_ping_interval_s = EC_FEISHU_PING_INTERVAL_S;
 static int64_t s_last_ping_us = 0;
 static QueueHandle_t s_ws_event_queue = NULL;
 static int64_t s_ws_connected_at_us = 0;
-static char s_last_event_ids[FEISHU_LAST_EVENT_ID_N][96] = {0};
+static char s_last_event_ids[EC_FEISHU_LAST_EVENT_ID_N][96] = {0};
 static int s_last_event_id_idx = 0;
 
 static const ec_channel_t s_driver = {
@@ -127,7 +130,7 @@ static const ec_channel_t s_driver = {
 
 /* ==================== [Macros] ============================================ */
 
-#define W_VARINT(out, out_max, off, v) do { \
+#define EC_FEISHU_W_VARINT(out, out_max, off, v) do { \
     uint64_t _x = (v); \
     while (_x >= 0x80) { \
         if ((off) >= (out_max)) return -1; \
@@ -201,7 +204,7 @@ static bool fetch_tenant_token(void)
     resp.cap = 2048;
 
     esp_http_client_config_t config = {
-        .url = FEISHU_AUTH_URL,
+        .url = EC_FEISHU_AUTH_URL,
         .method = HTTP_METHOD_POST,
         .event_handler = http_event_handler,
         .user_data = &resp,
@@ -231,8 +234,8 @@ static bool fetch_tenant_token(void)
                 cJSON *tok = cJSON_GetObjectItem(root, "tenant_access_token");
                 cJSON *exp = cJSON_GetObjectItem(root, "expire");
                 if (cJSON_IsString(tok) && cJSON_IsNumber(exp)) {
-                    strncpy(s_tenant_token, tok->valuestring, FEISHU_TOKEN_LEN - 1);
-                    s_tenant_token[FEISHU_TOKEN_LEN - 1] = '\0';
+                    strncpy(s_tenant_token, tok->valuestring, EC_FEISHU_TOKEN_LEN - 1);
+                    s_tenant_token[EC_FEISHU_TOKEN_LEN - 1] = '\0';
                     int64_t expire_s = (int64_t)exp->valuedouble;
                     s_token_expire_at_us = esp_timer_get_time() + expire_s * 1000000LL;
                     ok = true;
@@ -313,7 +316,7 @@ static bool fetch_ws_endpoint(void)
 
     bool ok = false;
 
-    const char *endpoint_url = FEISHU_ENDPOINT_URL;
+    const char *endpoint_url = EC_FEISHU_ENDPOINT_URL;
     resp.len = 0;
     resp.buf[0] = '\0';
 
@@ -613,21 +616,21 @@ static int encode_response_frame(uint8_t *out, size_t out_max, const feishu_fram
                                1 + encoded_varint_size(biz_rt_value_len) + biz_rt_value_len;
     size_t total_header_len = f->header_blob_len + biz_rt_header_len;
 
-    W_VARINT(out, out_max, off, 1 << 3 | 0); W_VARINT(out, out_max, off, f->seq_id);
-    W_VARINT(out, out_max, off, 2 << 3 | 0); W_VARINT(out, out_max, off, f->log_id);
-    W_VARINT(out, out_max, off, 3 << 3 | 0); W_VARINT(out, out_max, off, (uint64_t)f->service);
-    W_VARINT(out, out_max, off, 4 << 3 | 0); W_VARINT(out, out_max, off, 1);
-    W_VARINT(out, out_max, off, 5 << 3 | 2); W_VARINT(out, out_max, off, total_header_len);
+    EC_FEISHU_W_VARINT(out, out_max, off, 1 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, f->seq_id);
+    EC_FEISHU_W_VARINT(out, out_max, off, 2 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, f->log_id);
+    EC_FEISHU_W_VARINT(out, out_max, off, 3 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, (uint64_t)f->service);
+    EC_FEISHU_W_VARINT(out, out_max, off, 4 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, 1);
+    EC_FEISHU_W_VARINT(out, out_max, off, 5 << 3 | 2); EC_FEISHU_W_VARINT(out, out_max, off, total_header_len);
     if (off + total_header_len > out_max) {
         return -1;
     }
     memcpy(out + off, f->header_blob, f->header_blob_len);
     off += f->header_blob_len;
-    out[off++] = 0x0a; W_VARINT(out, out_max, off, biz_rt_key_len);
+    out[off++] = 0x0a; EC_FEISHU_W_VARINT(out, out_max, off, biz_rt_key_len);
     memcpy(out + off, biz_rt_key, biz_rt_key_len); off += biz_rt_key_len;
-    out[off++] = 0x12; W_VARINT(out, out_max, off, biz_rt_value_len);
+    out[off++] = 0x12; EC_FEISHU_W_VARINT(out, out_max, off, biz_rt_value_len);
     memcpy(out + off, rt_str, biz_rt_value_len); off += biz_rt_value_len;
-    W_VARINT(out, out_max, off, 8 << 3 | 2); W_VARINT(out, out_max, off, resp_len);
+    EC_FEISHU_W_VARINT(out, out_max, off, 8 << 3 | 2); EC_FEISHU_W_VARINT(out, out_max, off, resp_len);
     if (off + resp_len > out_max) {
         return -1;
     }
@@ -646,17 +649,17 @@ static int encode_ping_frame(uint8_t *out, size_t out_max, int32_t service_id)
     size_t ping_val_len = strlen(ping_val);
     size_t header_len = 1 + encoded_varint_size(type_key_len) + type_key_len +
                         1 + encoded_varint_size(ping_val_len) + ping_val_len;
-    W_VARINT(out, out_max, off, 1 << 3 | 0); W_VARINT(out, out_max, off, 0);
-    W_VARINT(out, out_max, off, 2 << 3 | 0); W_VARINT(out, out_max, off, 0);
-    W_VARINT(out, out_max, off, 3 << 3 | 0); W_VARINT(out, out_max, off, (uint64_t)service_id);
-    W_VARINT(out, out_max, off, 4 << 3 | 0); W_VARINT(out, out_max, off, 0);
-    W_VARINT(out, out_max, off, 5 << 3 | 2); W_VARINT(out, out_max, off, header_len);
+    EC_FEISHU_W_VARINT(out, out_max, off, 1 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, 0);
+    EC_FEISHU_W_VARINT(out, out_max, off, 2 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, 0);
+    EC_FEISHU_W_VARINT(out, out_max, off, 3 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, (uint64_t)service_id);
+    EC_FEISHU_W_VARINT(out, out_max, off, 4 << 3 | 0); EC_FEISHU_W_VARINT(out, out_max, off, 0);
+    EC_FEISHU_W_VARINT(out, out_max, off, 5 << 3 | 2); EC_FEISHU_W_VARINT(out, out_max, off, header_len);
     if (off + header_len > out_max) {
         return -1;
     }
-    out[off++] = 0x0a; W_VARINT(out, out_max, off, type_key_len);
+    out[off++] = 0x0a; EC_FEISHU_W_VARINT(out, out_max, off, type_key_len);
     memcpy(out + off, type_key, type_key_len); off += type_key_len;
-    out[off++] = 0x12; W_VARINT(out, out_max, off, ping_val_len);
+    out[off++] = 0x12; EC_FEISHU_W_VARINT(out, out_max, off, ping_val_len);
     memcpy(out + off, ping_val, ping_val_len); off += ping_val_len;
     return (int)off;
 }
@@ -741,7 +744,7 @@ static void process_ws_event_payload(const char *payload, size_t payload_len)
     const char *event_id = (event_id_node && cJSON_IsString(event_id_node)) ? event_id_node->valuestring : NULL;
     if (event_id && event_id[0]) {
         int i;
-        for (i = 0; i < FEISHU_LAST_EVENT_ID_N; i++) {
+        for (i = 0; i < EC_FEISHU_LAST_EVENT_ID_N; i++) {
             if (s_last_event_ids[i][0] && strcmp(s_last_event_ids[i], event_id) == 0) {
                 ESP_LOGI(TAG, "Feishu WS: duplicate event_id=%.48s (resend/replay), not pushing", event_id);
                 goto ws_data_done;
@@ -749,7 +752,7 @@ static void process_ws_event_payload(const char *payload, size_t payload_len)
         }
         strncpy(s_last_event_ids[s_last_event_id_idx], event_id, sizeof(s_last_event_ids[0]) - 1);
         s_last_event_ids[s_last_event_id_idx][sizeof(s_last_event_ids[0]) - 1] = '\0';
-        s_last_event_id_idx = (s_last_event_id_idx + 1) % FEISHU_LAST_EVENT_ID_N;
+        s_last_event_id_idx = (s_last_event_id_idx + 1) % EC_FEISHU_LAST_EVENT_ID_N;
     }
 
 
@@ -949,7 +952,7 @@ static void feishu_ws_task(void *arg)
         };
         s_ws_client = esp_websocket_client_init(&ws_cfg);
         if (!s_ws_client) {
-            vTaskDelay(pdMS_TO_TICKS(FEISHU_WS_RECONNECT_MS));
+            vTaskDelay(pdMS_TO_TICKS(EC_FEISHU_WS_RECONNECT_MS));
             continue;
         }
         esp_websocket_register_events(s_ws_client, WEBSOCKET_EVENT_ANY, handle_ws_event, NULL);
@@ -974,7 +977,7 @@ static void feishu_ws_task(void *arg)
         esp_websocket_client_stop(s_ws_client);
         esp_websocket_client_destroy(s_ws_client);
         s_ws_client = NULL;
-        vTaskDelay(pdMS_TO_TICKS(FEISHU_WS_RECONNECT_MS));
+        vTaskDelay(pdMS_TO_TICKS(EC_FEISHU_WS_RECONNECT_MS));
     }
 }
 
@@ -992,7 +995,7 @@ static void token_refresh_task(void *arg)
 static esp_err_t ec_channel_feishu_start(void)
 {
     if (!s_ws_event_queue) {
-        s_ws_event_queue = xQueueCreate(FEISHU_EVENT_QUEUE_LEN, sizeof(feishu_event_job_t));
+        s_ws_event_queue = xQueueCreate(EC_FEISHU_EVENT_QUEUE_LEN, sizeof(feishu_event_job_t));
     }
     if (!s_ws_event_queue) {
         ESP_LOGE(TAG, "Failed to create Feishu event queue");
@@ -1000,24 +1003,24 @@ static esp_err_t ec_channel_feishu_start(void)
     }
 
     BaseType_t evt_ok = xTaskCreatePinnedToCore(feishu_event_worker_task, "feishu_evt",
-                        FEISHU_TASK_STACK, NULL,
-                        FEISHU_TASK_PRIO, NULL, FEISHU_TASK_CORE);
+                        EC_FEISHU_TASK_STACK, NULL,
+                        EC_FEISHU_TASK_PRIO, NULL, EC_FEISHU_TASK_CORE);
     if (evt_ok != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Feishu event worker task");
         return ESP_FAIL;
     }
 
     BaseType_t tok_ok = xTaskCreatePinnedToCore(token_refresh_task, "feishu_tok",
-                        FEISHU_TASK_STACK, NULL,
-                        FEISHU_TASK_PRIO, NULL, FEISHU_TASK_CORE);
+                        EC_FEISHU_TASK_STACK, NULL,
+                        EC_FEISHU_TASK_PRIO, NULL, EC_FEISHU_TASK_CORE);
     if (tok_ok != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Feishu token task");
         return ESP_FAIL;
     }
 
     BaseType_t ws_ok = xTaskCreatePinnedToCore(feishu_ws_task, "feishu_ws",
-                       FEISHU_TASK_STACK, NULL,
-                       FEISHU_TASK_PRIO, NULL, FEISHU_TASK_CORE);
+                       EC_FEISHU_TASK_STACK, NULL,
+                       EC_FEISHU_TASK_PRIO, NULL, EC_FEISHU_TASK_CORE);
     if (ws_ok != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Feishu tasks");
         return ESP_FAIL;
@@ -1050,7 +1053,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
 
     /* Escape text for JSON: only " and \ need escape */
     size_t tlen = strlen(text);
-    size_t chunk = (tlen > FEISHU_MAX_MSG_LEN) ? FEISHU_MAX_MSG_LEN : tlen;
+    size_t chunk = (tlen > EC_FEISHU_MAX_MSG_LEN) ? EC_FEISHU_MAX_MSG_LEN : tlen;
     char *escaped = malloc(chunk * 2 + 32);
     if (!escaped) {
         return ESP_ERR_NO_MEM;
@@ -1086,7 +1089,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     }
 
     char url[128];
-    snprintf(url, sizeof(url), "%s?receive_id_type=%s", FEISHU_MSG_URL, chat_type);
+    snprintf(url, sizeof(url), "%s?receive_id_type=%s", EC_FEISHU_MSG_URL, chat_type);
 
     http_resp_t resp = { .buf = calloc(1, 2048), .len = 0, .cap = 2048 };
     if (!resp.buf) {
@@ -1110,7 +1113,7 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
         return ESP_ERR_NO_MEM;
     }
     esp_http_client_set_header(client, "Content-Type", "application/json; charset=utf-8");
-    char auth_hdr[FEISHU_TOKEN_LEN + 16];
+    char auth_hdr[EC_FEISHU_TOKEN_LEN + 16];
     snprintf(auth_hdr, sizeof(auth_hdr), "Bearer %s", s_tenant_token);
     esp_http_client_set_header(client, "Authorization", auth_hdr);
     esp_http_client_set_post_field(client, body_str, strlen(body_str));
@@ -1138,3 +1141,5 @@ static esp_err_t ec_channel_feishu_send(const ec_msg_t *msg)
     free(resp.buf);
     return ret;
 }
+
+#endif

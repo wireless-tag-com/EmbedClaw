@@ -13,6 +13,8 @@
 
 #include "ec_config_internal.h"
 
+#if EC_QQ_ENABLE
+
 #include <stdbool.h>
 #include <limits.h>
 #include <stdio.h>
@@ -33,17 +35,17 @@
 
 /* ==================== [Defines] =========================================== */
 
-#define QQ_TOKEN_URL            "https://bots.qq.com/app/getAppAccessToken"
-#define QQ_API_BASE             "https://api.sgroup.qq.com"
-#define QQ_TASK_STACK           (8 * 1024)
-#define QQ_TASK_PRIO            5
-#define QQ_HTTP_TIMEOUT_MS      10000
-#define QQ_GATEWAY_URL_MAX      256
-#define QQ_ACCESS_TOKEN_MAX     512
-#define QQ_SESSION_ID_MAX       128
-#define QQ_HTTP_RESP_INIT_CAP   1024
-#define QQ_HTTP_LOG_BUF_SIZE    192
-#define QQ_WS_LOOP_DELAY_MS     200
+#define EC_QQ_TOKEN_URL            "https://bots.qq.com/app/getAppAccessToken"
+#define EC_QQ_API_BASE             "https://api.sgroup.qq.com"
+#define EC_QQ_TASK_STACK           (8 * 1024)
+#define EC_QQ_TASK_PRIO            5
+#define EC_QQ_HTTP_TIMEOUT_MS      10000
+#define EC_QQ_GATEWAY_URL_MAX      256
+#define EC_QQ_ACCESS_TOKEN_MAX     512
+#define EC_QQ_SESSION_ID_MAX       128
+#define EC_QQ_HTTP_RESP_INIT_CAP   1024
+#define EC_QQ_HTTP_LOG_BUF_SIZE    192
+#define EC_QQ_WS_LOOP_DELAY_MS     200
 
 /* ==================== [Typedefs] ========================================== */
 
@@ -81,10 +83,10 @@ static esp_err_t ec_channel_qq_send(const ec_msg_t *msg);
 
 static const char *TAG = "qq";
 
-static char s_access_token[QQ_ACCESS_TOKEN_MAX] = "";
+static char s_access_token[EC_QQ_ACCESS_TOKEN_MAX] = "";
 static int64_t s_token_expire_at_us = 0;
-static char s_gateway_url[QQ_GATEWAY_URL_MAX] = "";
-static char s_session_id[QQ_SESSION_ID_MAX] = "";
+static char s_gateway_url[EC_QQ_GATEWAY_URL_MAX] = "";
+static char s_session_id[EC_QQ_SESSION_ID_MAX] = "";
 static int s_last_seq = -1;
 static int s_heartbeat_interval_ms = 0;
 static int64_t s_last_heartbeat_us = 0;
@@ -119,7 +121,7 @@ static void http_resp_append(http_resp_t *r, const void *data, size_t len)
     }
 
     if (r->len + len + 1 > r->cap) {
-        size_t new_cap = r->cap ? r->cap * 2 : QQ_HTTP_RESP_INIT_CAP;
+        size_t new_cap = r->cap ? r->cap * 2 : EC_QQ_HTTP_RESP_INIT_CAP;
         if (new_cap < r->len + len + 1) {
             new_cap = r->len + len + 1;
         }
@@ -214,11 +216,11 @@ static bool fetch_access_token(void)
     http_resp_t resp = {0};
     esp_http_client_handle_t client;
     esp_http_client_config_t cfg = {
-        .url = QQ_TOKEN_URL,
+        .url = EC_QQ_TOKEN_URL,
         .method = HTTP_METHOD_POST,
         .event_handler = http_event_handler,
         .user_data = &resp,
-        .timeout_ms = QQ_HTTP_TIMEOUT_MS,
+        .timeout_ms = EC_QQ_HTTP_TIMEOUT_MS,
         .buffer_size = 1024,
         .crt_bundle_attach = esp_crt_bundle_attach,
     };
@@ -226,7 +228,7 @@ static bool fetch_access_token(void)
     int status = 0;
     int expires_in_s = 0;
     bool ok = false;
-    char body_log[QQ_HTTP_LOG_BUF_SIZE];
+    char body_log[EC_QQ_HTTP_LOG_BUF_SIZE];
 
     if (!body) {
         return false;
@@ -240,12 +242,12 @@ static bool fetch_access_token(void)
         return false;
     }
 
-    resp.buf = calloc(1, QQ_HTTP_RESP_INIT_CAP);
+    resp.buf = calloc(1, EC_QQ_HTTP_RESP_INIT_CAP);
     if (!resp.buf) {
         free(json_str);
         return false;
     }
-    resp.cap = QQ_HTTP_RESP_INIT_CAP;
+    resp.cap = EC_QQ_HTTP_RESP_INIT_CAP;
 
     client = esp_http_client_init(&cfg);
     if (!client) {
@@ -314,35 +316,35 @@ static bool ensure_access_token(void)
 
 static bool fetch_gateway_url(void)
 {
-    char url[sizeof(QQ_API_BASE) + 16];
-    char auth[QQ_ACCESS_TOKEN_MAX + 16];
+    char url[sizeof(EC_QQ_API_BASE) + 16];
+    char auth[EC_QQ_ACCESS_TOKEN_MAX + 16];
     http_resp_t resp = {0};
     esp_http_client_handle_t client;
     esp_http_client_config_t cfg;
     esp_err_t err;
     int status = 0;
     bool ok = false;
-    char body_log[QQ_HTTP_LOG_BUF_SIZE];
+    char body_log[EC_QQ_HTTP_LOG_BUF_SIZE];
 
     if (!ensure_access_token()) {
         return false;
     }
 
-    snprintf(url, sizeof(url), "%s/gateway", QQ_API_BASE);
+    snprintf(url, sizeof(url), "%s/gateway", EC_QQ_API_BASE);
     snprintf(auth, sizeof(auth), "QQBot %s", s_access_token);
 
-    resp.buf = calloc(1, QQ_HTTP_RESP_INIT_CAP);
+    resp.buf = calloc(1, EC_QQ_HTTP_RESP_INIT_CAP);
     if (!resp.buf) {
         return false;
     }
-    resp.cap = QQ_HTTP_RESP_INIT_CAP;
+    resp.cap = EC_QQ_HTTP_RESP_INIT_CAP;
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.url = url;
     cfg.method = HTTP_METHOD_GET;
     cfg.event_handler = http_event_handler;
     cfg.user_data = &resp;
-    cfg.timeout_ms = QQ_HTTP_TIMEOUT_MS;
+    cfg.timeout_ms = EC_QQ_HTTP_TIMEOUT_MS;
     cfg.buffer_size = 1024;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
 
@@ -419,7 +421,7 @@ static bool qq_send_identify_frame(void)
 {
     cJSON *payload = cJSON_CreateObject();
     cJSON *data = cJSON_CreateObject();
-    char token[QQ_ACCESS_TOKEN_MAX + 16];
+    char token[EC_QQ_ACCESS_TOKEN_MAX + 16];
     cJSON *shard;
 
     if (!payload || !data) {
@@ -448,7 +450,7 @@ static bool qq_send_resume_frame(void)
 {
     cJSON *payload = cJSON_CreateObject();
     cJSON *data = cJSON_CreateObject();
-    char token[QQ_ACCESS_TOKEN_MAX + 16];
+    char token[EC_QQ_ACCESS_TOKEN_MAX + 16];
 
     if (!payload || !data) {
         cJSON_Delete(payload);
@@ -609,8 +611,8 @@ static char *qq_build_message_body_alloc(const ec_msg_t *msg)
 static bool qq_post_message(const ec_msg_t *msg)
 {
     char path[96];
-    char url[QQ_GATEWAY_URL_MAX];
-    char auth[QQ_ACCESS_TOKEN_MAX + 16];
+    char url[EC_QQ_GATEWAY_URL_MAX];
+    char auth[EC_QQ_ACCESS_TOKEN_MAX + 16];
     http_resp_t resp = {0};
     esp_http_client_handle_t client;
     esp_http_client_config_t cfg;
@@ -631,25 +633,25 @@ static bool qq_post_message(const ec_msg_t *msg)
         return false;
     }
 
-    snprintf(url, sizeof(url), "%s%s", QQ_API_BASE, path);
+    snprintf(url, sizeof(url), "%s%s", EC_QQ_API_BASE, path);
     body_str = qq_build_message_body_alloc(msg);
     if (!body_str) {
         return false;
     }
 
-    resp.buf = calloc(1, QQ_HTTP_RESP_INIT_CAP);
+    resp.buf = calloc(1, EC_QQ_HTTP_RESP_INIT_CAP);
     if (!resp.buf) {
         free(body_str);
         return false;
     }
-    resp.cap = QQ_HTTP_RESP_INIT_CAP;
+    resp.cap = EC_QQ_HTTP_RESP_INIT_CAP;
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.url = url;
     cfg.method = HTTP_METHOD_POST;
     cfg.event_handler = http_event_handler;
     cfg.user_data = &resp;
-    cfg.timeout_ms = QQ_HTTP_TIMEOUT_MS;
+    cfg.timeout_ms = EC_QQ_HTTP_TIMEOUT_MS;
     cfg.buffer_size = 1024;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
 
@@ -825,9 +827,9 @@ static void qq_ws_task(void *arg)
 
         ws_cfg.uri = s_gateway_url;
         ws_cfg.buffer_size = 2048;
-        ws_cfg.network_timeout_ms = QQ_HTTP_TIMEOUT_MS;
-        ws_cfg.task_stack = QQ_TASK_STACK;
-        ws_cfg.task_prio = QQ_TASK_PRIO;
+        ws_cfg.network_timeout_ms = EC_QQ_HTTP_TIMEOUT_MS;
+        ws_cfg.task_stack = EC_QQ_TASK_STACK;
+        ws_cfg.task_prio = EC_QQ_TASK_PRIO;
         ws_cfg.task_name = "qq_ws";
         ws_cfg.reconnect_timeout_ms = EC_QQ_RECONNECT_MS;
         ws_cfg.crt_bundle_attach = esp_crt_bundle_attach;
@@ -856,7 +858,7 @@ static void qq_ws_task(void *arg)
                     qq_send_heartbeat();
                 }
             }
-            vTaskDelay(pdMS_TO_TICKS(QQ_WS_LOOP_DELAY_MS));
+            vTaskDelay(pdMS_TO_TICKS(EC_QQ_WS_LOOP_DELAY_MS));
         }
 
         if (s_ws_client) {
@@ -881,7 +883,7 @@ static esp_err_t ec_channel_qq_start(void)
         return ESP_OK;
     }
 
-    if (xTaskCreate(qq_ws_task, "qq_gateway", QQ_TASK_STACK, NULL, QQ_TASK_PRIO, &s_ws_task) != pdPASS) {
+    if (xTaskCreate(qq_ws_task, "qq_gateway", EC_QQ_TASK_STACK, NULL, EC_QQ_TASK_PRIO, &s_ws_task) != pdPASS) {
         s_ws_task = NULL;
         return ESP_ERR_NO_MEM;
     }
@@ -901,3 +903,6 @@ static esp_err_t ec_channel_qq_send(const ec_msg_t *msg)
 
     return ESP_OK;
 }
+
+
+#endif

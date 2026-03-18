@@ -12,6 +12,9 @@
 /* ==================== [Includes] ========================================== */
 
 #include "ec_config_internal.h"
+
+#if EC_WS_ENABLE
+
 #include "core/ec_channel.h"
 #include <string.h>
 #include <stdlib.h>
@@ -343,3 +346,5 @@ static char *ws_build_response_json_alloc(const ec_msg_t *msg)
     cJSON_Delete(resp);
     return json_str;
 }
+
+#endif

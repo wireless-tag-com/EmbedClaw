@@ -67,7 +67,7 @@ static esp_err_t ec_tool_cron_remove_execute(const char *input_json, char *outpu
 
 static const char *TAG = "tools_cron";
 
-static ec_cron_job_t s_jobs[EC_MAX_CRON_JOBS];
+static ec_cron_job_t s_jobs[EC_CRON_MAX_JOBS];
 static int s_job_count = 0;
 static TaskHandle_t s_cron_task_handle = NULL;
 
@@ -391,8 +391,8 @@ static esp_err_t ec_cron_service_start(void)
 
 static esp_err_t ec_cron_add_job(ec_cron_job_t *job)
 {
-    if (s_job_count >= EC_MAX_CRON_JOBS) {
-        ESP_LOGW(TAG, "Max cron jobs reached (%d)", EC_MAX_CRON_JOBS);
+    if (s_job_count >= EC_CRON_MAX_JOBS) {
+        ESP_LOGW(TAG, "Max cron jobs reached (%d)", EC_CRON_MAX_JOBS);
         return ESP_ERR_NO_MEM;
     }
 

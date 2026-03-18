@@ -23,7 +23,7 @@
 
 /* ── Built-in skill contents ─────────────────────────────────── */
 
-#define BUILTIN_WEATHER \
+#define EC_SKILL_LOADER_BUILTIN_WEATHER \
     "# Weather\n" \
     "\n" \
     "Get current weather and forecasts using web_search.\n" \
@@ -43,7 +43,7 @@
     "→ web_search \"weather Tokyo today February 2026\"\n" \
     "→ \"Tokyo: 8°C, partly cloudy. High 12°C, low 4°C. Light wind from the north.\"\n"
 
-#define BUILTIN_DAILY_BRIEFING \
+#define EC_SKILL_LOADER_BUILTIN_DAILY_BRIEFING \
     "# Daily Briefing\n" \
     "\n" \
     "Compile a personalized daily briefing for the user.\n" \
@@ -67,7 +67,7 @@
     "## Format\n" \
     "Keep it brief — 5-10 bullet points max. Use the user's preferred language.\n"
 
-#define BUILTIN_SKILL_CREATOR \
+#define EC_SKILL_LOADER_BUILTIN_SKILL_CREATOR \
     "# Skill Creator\n" \
     "\n" \
     "Create new skills for EmbedClaw.\n" \
@@ -100,7 +100,7 @@
     "2. Translate directly using your language knowledge\\n" \
     "3. For specialized terms, use web_search to verify\\n\"\n"
 
-#define NUM_BUILTINS (sizeof(s_builtins) / sizeof(s_builtins[0]))
+#define EC_SKILL_LOADER_NUM_BUILTINS (sizeof(s_builtins) / sizeof(s_builtins[0]))
 
 /* ==================== [Typedefs] ========================================== */
 
@@ -121,9 +121,9 @@ static void extract_description(FILE *f, char *out, size_t out_size);
 static const char *TAG = "skills";
 
 static const builtin_skill_t s_builtins[] = {
-    { "weather",        BUILTIN_WEATHER        },
-    { "daily-briefing", BUILTIN_DAILY_BRIEFING },
-    { "skill-creator",  BUILTIN_SKILL_CREATOR  },
+    { "weather",        EC_SKILL_LOADER_BUILTIN_WEATHER        },
+    { "daily-briefing", EC_SKILL_LOADER_BUILTIN_DAILY_BRIEFING },
+    { "skill-creator",  EC_SKILL_LOADER_BUILTIN_SKILL_CREATOR  },
 };
 
 /* ==================== [Macros] ============================================ */
@@ -134,11 +134,11 @@ esp_err_t ec_skill_loader_init(void)
 {
     ESP_LOGI(TAG, "Initializing skills system");
 
-    for (size_t i = 0; i < NUM_BUILTINS; i++) {
+    for (size_t i = 0; i < EC_SKILL_LOADER_NUM_BUILTINS; i++) {
         install_builtin(&s_builtins[i]);
     }
 
-    ESP_LOGI(TAG, "Skills system ready (%d built-in)", (int)NUM_BUILTINS);
+    ESP_LOGI(TAG, "Skills system ready (%d built-in)", (int)EC_SKILL_LOADER_NUM_BUILTINS);
     return ESP_OK;
 }
 
