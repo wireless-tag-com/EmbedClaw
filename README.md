@@ -4,6 +4,8 @@
 
 <div align="center">
 
+![logo](assets/logo.png)
+
 **Decouple LLM, Tools, Agent, and Channels—then pack them onto a single ESP32-S3.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) ![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-ff6a00) ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.5.2-00979D) ![LLM](https://img.shields.io/badge/LLM-Qwen%20via%20DashScope-0f766e) ![Channel](https://img.shields.io/badge/Channel-Feishu%20%7C%20WebSocket%20%7C%20QQBot-2563eb) ![Search](https://img.shields.io/badge/Search-Tavily-111827)
@@ -18,7 +20,7 @@
 
 This project draws on the ideas and direction of:
 
-- [OpenClaw](https://github.com/OpenClawAI/OpenClaw)
+- [OpenClaw](https://github.com/openclaw/openclaw)
 - [MimiClaw](https://github.com/memovai/mimiclaw)
 
 EmbedClaw keeps the goal of running a full AI Agent on low-power hardware but focuses the architecture on **decoupling LLM, Tools, Agent, and Channels**.  
@@ -69,10 +71,10 @@ It’s a working “embedded Agent base” you can extend.
 | Chat Channel | Feishu, WebSocket, QQBot | Feishu long connection, local WebSocket chat, official QQBot gateway |
 | Agent | ReAct tool loop | Model can call tools, read results, then continue |
 | Long-term memory | `/spiffs/memory/MEMORY.md` | User profile, preferences, stable facts |
-| Short-term memory | `/spiffs/session/se_<hash>.jsonl` | Recent conversation for current session |
+| Short-term memory | `/spiffs/session/se_<hash>.jsonl` | Conversation history including tool call traces |
 | Daily notes | `/spiffs/memory/<YYYY-MM-DD>.md` | Recent events and daily context |
-| Skills | Built-in + SPIFFS | Task instructions as Markdown |
-| Tools | Files, time, search, cron | Exposed to LLM via JSON schema |
+| Skills | SPIFFS pre-installed + runtime | Task instructions as Markdown |
+| Tools | Files, time, search, cron, GPIO | Exposed to LLM via JSON schema |
 
 ### Registered tools
 
@@ -87,10 +89,11 @@ It’s a working “embedded Agent base” you can extend.
 | `cron_add` | Add periodic or one-shot scheduled tasks |
 | `cron_list` | List scheduled tasks |
 | `cron_remove` | Remove scheduled tasks |
+| `gpio_control` | Control ESP32 GPIO pins (on, off, set, toggle, get) |
 
-### Built-in skills
+### Pre-installed skills
 
-These are installed at startup:
+These are pre-installed as Markdown files in `spiffs_data/skills/` and deployed with the SPIFFS image:
 
 - `weather`
 - `daily-briefing`
@@ -115,6 +118,7 @@ flowchart LR
     T --> S2[File Tools]
     T --> S3[Time Tool]
     T --> S4[Cron Tool]
+    T --> S5[GPIO Tool]
     A --> M1[Session Memory]
     A --> M2[Long-term Memory]
     A --> K[Skill Loader]
@@ -137,6 +141,9 @@ flowchart LR
 │   ├── embed_claw.c             # System startup entry
 │   └── ec_config_internal.h     # Built-in defaults; local overrides live in main/ec_config.h
 ├── spiffs_data/                 # Default SPIFFS image content
+│   ├── config/                  # SOUL.md, USER.md
+│   ├── memory/                  # MEMORY.md
+│   └── skills/                  # Pre-installed skill files
 └── scripts/                     # WebSocket test script and test-app helpers
 ```
 
@@ -540,7 +547,6 @@ Skills are Markdown task descriptions, not code. You can:
 
 - Write them at runtime via tools to `/spiffs/skills/<name>.md`
 - Or put default skills in `spiffs_data/skills/` so they’re in the SPIFFS image
-- Or add built-in skills in `ec_skill_loader.c`
 
 Suggested format:
 
