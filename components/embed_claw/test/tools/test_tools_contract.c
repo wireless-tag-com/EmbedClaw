@@ -28,7 +28,22 @@ TEST_CASE("tool registry builds json for built-in tools", "[embed_claw][tools][c
     TEST_ASSERT_NOT_NULL(json);
     TEST_ASSERT_NOT_NULL(strstr(json, "\"web_search\""));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"get_current_time\""));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"gpio_control\""));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"cron_add\""));
+    cleanup_tools_after_test();
+}
+
+TEST_CASE("tool registry builds prompt summary from built-in tools", "[embed_claw][tools][catalog]")
+{
+    char summary[1024];
+
+    register_builtin_tools_for_test();
+
+    TEST_ASSERT_GREATER_THAN(0, (int)ec_tools_build_summary(summary, sizeof(summary)));
+    TEST_ASSERT_NOT_NULL(strstr(summary, "- get_current_time:"));
+    TEST_ASSERT_NOT_NULL(strstr(summary, "- gpio_control:"));
+    TEST_ASSERT_NOT_NULL(strstr(summary, "- cron_add:"));
+
     cleanup_tools_after_test();
 }
 

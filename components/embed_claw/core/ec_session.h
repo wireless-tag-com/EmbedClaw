@@ -15,6 +15,7 @@
 /* ==================== [Includes] ========================================== */
 
 #include "esp_err.h"
+#include "cJSON.h"
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -38,6 +39,17 @@ extern "C" {
  *  - ESP_FAIL 写入失败（如文件无法打开）
  */
 esp_err_t ec_session_append(const char *chat_id, const char *role, const char *content);
+
+/**
+ * @brief 添加一条完整的 cJSON 消息对象到会话历史（保留 tool_calls、数组 content 等结构）。
+ *
+ * @param chat_id 会话id
+ * @param msg cJSON 消息对象（不会被修改或释放）
+ * @return esp_err_t
+ *  - ESP_OK 成功
+ *  - ESP_FAIL 写入失败
+ */
+esp_err_t ec_session_append_msg(const char *chat_id, const cJSON *msg);
 
 /**
  * @brief 获取会话历史的JSON字符串，格式为：

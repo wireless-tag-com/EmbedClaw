@@ -41,21 +41,15 @@
 #define EC_AGENT_CHANNEL_DELIVERY_TASK_STACK (8 * 1024)
 #define EC_AGENT_CHANNEL_DELIVERY_TASK_PRIO  5
 
-#define EC_AGENT_SYSTEM_PROMPT_STR \
+#define EC_AGENT_SYSTEM_PROMPT_HEAD \
         "You are EmbedClaw, a helpful and concise AI assistant running on an ESP32 device.\n"\
         "You communicate via Feishu and WebSocket.\n"\
         "Reply briefly to short messages (e.g. 你好, 在吗, 谢谢).\n"\
         "# Tools\n"\
-        "- web_search: search current information.\n"\
-        "- get_current_time: get date/time.\n"\
-        "- read_file: read /spiffs/ files (path must start with " EC_FS_BASE "/).\n"\
-        "- write_file: Write file.\n"\
-        "- edit_file: edit file.\n"\
-        "- list_dir: list files.\n"\
-        "- cron_add: schedule task.\n"\
-        "- cron_list: list tasks.\n"\
-        "- cron_remove: remove task.\n\n"\
-        "When using cron_add to reply later in the same conversation, reuse the current channel, chat_type, and chat_id.\n\n"\
+        "Available tools:\n"
+
+#define EC_AGENT_SYSTEM_PROMPT_TAIL \
+        "\nWhen using cron_add to reply later in the same conversation, reuse the current channel, chat_type, and chat_id.\n\n"\
         "Use tools when needed. Provide your final answer as text after using tools.\n\n"\
         "## Memory\n"\
         "You have persistent memory stored on local flash:\n"\
@@ -328,7 +322,25 @@ static esp_err_t context_build_system_prompt(char *buf, size_t size)
     size_t off = 0;
     size_t cap = size - 1;
 
-    off += snprintf(buf + off, size - off, EC_AGENT_SYSTEM_PROMPT_STR);
+    off += snprintf(buf + off, size - off, EC_AGENT_SYSTEM_PROMPT_HEAD);
+    if (off > cap) {
+        off = cap;
+    }
+
+    scratch = calloc(1, EC_AGENT_PROMPT_SCRATCH_SIZE);
+    if (!scratch) {
+        ESP_LOGW(TAG, "Skipping optional prompt sections: out of memory");
+    } else {
+        size_t tools_len = ec_tools_build_summary(scratch, EC_AGENT_PROMPT_SCRATCH_SIZE);
+        if (off < cap && tools_len > 0) {
+            off += snprintf(buf + off, size - off, "%s", scratch);
+            if (off > cap) {
+                off = cap;
+            }
+        }
+    }
+
+    off += snprintf(buf + off, size - off, EC_AGENT_SYSTEM_PROMPT_TAIL);
     if (off > cap) {
         off = cap;
     }
@@ -337,10 +349,7 @@ static esp_err_t context_build_system_prompt(char *buf, size_t size)
     off = append_file(buf, size, off, EC_SOUL_FILE, "Personality");
     off = append_file(buf, size, off, EC_USER_FILE, "User Info");
 
-    scratch = calloc(1, EC_AGENT_PROMPT_SCRATCH_SIZE);
-    if (!scratch) {
-        ESP_LOGW(TAG, "Skipping optional prompt sections: out of memory");
-    } else {
+    if (scratch) {
         if (off < cap && ec_memory_read_long_term(scratch, EC_AGENT_PROMPT_SCRATCH_SIZE) == ESP_OK && scratch[0]) {
             off += snprintf(buf + off, size - off, "\n## Long-term Memory\n\n%s\n", scratch);
             if (off > cap) {
@@ -377,7 +386,6 @@ static esp_err_t context_build_system_prompt(char *buf, size_t size)
     }
 
     ESP_LOGI(TAG, "System prompt built: %d bytes", (int)off);
-    ESP_LOGI(TAG, "prompt:%s", buf);
 
     return ESP_OK;
 }
@@ -455,6 +463,8 @@ static void agent_loop_task(void *arg)
         if (!messages) {
             messages = cJSON_CreateArray();
         }
+        int history_count = cJSON_GetArraySize(messages);
+
         cJSON *user_msg = cJSON_CreateObject();
         cJSON_AddStringToObject(user_msg, "role", "user");
         cJSON_AddStringToObject(user_msg, "content", msg.content);
@@ -488,7 +498,6 @@ static void agent_loop_task(void *arg)
             }
 
             if (!resp.tool_use) {
-                // 正常对话结束，保存最终文本并退出循环
                 if (resp.text && resp.text_len > 0) {
                     final_text = strdup(resp.text);
                 }
@@ -496,14 +505,11 @@ static void agent_loop_task(void *arg)
                 break;
             }
 
-
-            // 构建助手消息，包含文本回复和工具调用信息，供工具执行结果使用
             cJSON *asst_msg = cJSON_CreateObject();
             cJSON_AddStringToObject(asst_msg, "role", "assistant");
             cJSON_AddItemToObject(asst_msg, "content", build_assistant_content(&resp));
             cJSON_AddItemToArray(messages, asst_msg);
 
-            // 执行工具并将结果追加到消息数组中，供下一轮 LLM 调用使用
             cJSON *tool_results = build_tool_results(&resp, &msg, tool_output, EC_AGENT_TOOL_OUTPUT_SIZE);
             cJSON *result_msg = cJSON_CreateObject();
             cJSON_AddStringToObject(result_msg, "role", "user");
@@ -514,14 +520,19 @@ static void agent_loop_task(void *arg)
         }
 
         if (final_text && final_text[0]) {
-            // 保存用户消息和助手回复到会话历史中
-            esp_err_t save_user = ec_session_append(session_key, "user", msg.content);
-            esp_err_t save_asst = ec_session_append(session_key, "assistant", final_text);
-            if (save_user != ESP_OK || save_asst != ESP_OK) {
-                ESP_LOGW(TAG, "Session save failed for %s:%s:%s (user=%s, assistant=%s)",
-                         msg.channel, msg.chat_type, msg.chat_id,
-                         esp_err_to_name(save_user),
-                         esp_err_to_name(save_asst));
+            int total = cJSON_GetArraySize(messages);
+            bool save_ok = true;
+            for (int k = history_count; k < total; k++) {
+                if (ec_session_append_msg(session_key, cJSON_GetArrayItem(messages, k)) != ESP_OK) {
+                    save_ok = false;
+                }
+            }
+            if (ec_session_append(session_key, "assistant", final_text) != ESP_OK) {
+                save_ok = false;
+            }
+            if (!save_ok) {
+                ESP_LOGW(TAG, "Session save failed for %s:%s:%s",
+                         msg.channel, msg.chat_type, msg.chat_id);
             } else {
                 ESP_LOGI(TAG, "Session saved for %s:%s:%s", msg.channel, msg.chat_type, msg.chat_id);
             }

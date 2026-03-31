@@ -17,6 +17,7 @@
 - [x] Web search
 - [ ] Script interpreter
 - [ ] Peripherals (GPIO, I2C, etc.)
+    - [X] GPIO
 - [ ] Camera
 
 ## Channel integration
@@ -33,3 +34,5 @@
 - [x] test and ci/cd
 - [ ] Support more filesystems (beyond SPIFFS)
 - [ ] SD card support
+- [ ] Support ESP32C3
+

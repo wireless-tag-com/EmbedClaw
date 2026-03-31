@@ -26,6 +26,7 @@
 /* ==================== [Defines] =========================================== */
 
 #define EC_SESSION_PATH_MAX 128
+#define EC_SESSION_LINE_MAX 4096
 
 /* ==================== [Typedefs] ========================================== */
 
@@ -70,6 +71,40 @@ esp_err_t ec_session_append(const char *chat_id, const char *role, const char *c
     return ESP_OK;
 }
 
+esp_err_t ec_session_append_msg(const char *chat_id, const cJSON *msg)
+{
+    if (!chat_id || !msg) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char path[EC_SESSION_PATH_MAX];
+    session_path(chat_id, path, sizeof(path));
+
+    FILE *f = fopen(path, "a");
+    if (!f) {
+        ESP_LOGE(TAG, "Cannot open session file %s", path);
+        return ESP_FAIL;
+    }
+
+    cJSON *copy = cJSON_Duplicate(msg, 1);
+    if (!copy) {
+        fclose(f);
+        return ESP_ERR_NO_MEM;
+    }
+    cJSON_AddNumberToObject(copy, "ts", (double)time(NULL));
+
+    char *line = cJSON_PrintUnformatted(copy);
+    cJSON_Delete(copy);
+
+    if (line) {
+        fprintf(f, "%s\n", line);
+        free(line);
+    }
+
+    fclose(f);
+    return ESP_OK;
+}
+
 esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t size, int max_msgs)
 {
     if (!buf || size == 0) {
@@ -101,9 +136,8 @@ esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t siz
     int count = 0;
     int write_idx = 0;
 
-    char line[2048];
+    char line[EC_SESSION_LINE_MAX];
     while (fgets(line, sizeof(line), f)) {
-        /* Strip newline */
         size_t len = strlen(line);
         if (len > 0 && line[len - 1] == '\n') line[len - 1] = '\0';
         if (line[0] == '\0') continue;
@@ -111,7 +145,6 @@ esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t siz
         cJSON *obj = cJSON_Parse(line);
         if (!obj) continue;
 
-        /* Ring buffer: overwrite oldest if full */
         if (count >= history_limit) {
             cJSON_Delete(messages[write_idx]);
         }
@@ -121,7 +154,7 @@ esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t siz
     }
     fclose(f);
 
-    /* Build JSON array with only role + content */
+    /* Build JSON array preserving full message structure */
     cJSON *arr = cJSON_CreateArray();
     int start = (count < history_limit) ? 0 : write_idx;
     for (int i = 0; i < count; i++) {
@@ -129,17 +162,16 @@ esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t siz
         cJSON *src = messages[idx];
 
         cJSON *role = cJSON_GetObjectItem(src, "role");
-        cJSON *content = cJSON_GetObjectItem(src, "content");
-        if (!cJSON_IsString(role) || !role->valuestring ||
-                !cJSON_IsString(content) || !content->valuestring) {
+        if (!cJSON_IsString(role) || !role->valuestring) {
             ESP_LOGW(TAG, "Skipping malformed session entry in %s", path);
             continue;
         }
 
-        cJSON *entry = cJSON_CreateObject();
-        cJSON_AddStringToObject(entry, "role", role->valuestring);
-        cJSON_AddStringToObject(entry, "content", content->valuestring);
-        cJSON_AddItemToArray(arr, entry);
+        cJSON *entry = cJSON_Duplicate(src, 1);
+        if (entry) {
+            cJSON_DeleteItemFromObject(entry, "ts");
+            cJSON_AddItemToArray(arr, entry);
+        }
     }
 
     /* Cleanup ring buffer */
@@ -150,6 +182,7 @@ esp_err_t ec_session_get_history_json(const char *chat_id, char *buf, size_t siz
     }
 
     char *json_str = cJSON_PrintUnformatted(arr);
+    ESP_LOGI(TAG, "Session history for %s:\n%s", chat_id, json_str);
     cJSON_Delete(arr);
 
     if (json_str) {

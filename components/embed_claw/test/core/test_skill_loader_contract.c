@@ -20,31 +20,15 @@ static void write_text_file(const char *path, const char *content)
     fclose(f);
 }
 
-TEST_CASE("skill loader installs builtins and summarizes skills", "[embed_claw][core][skills]")
+TEST_CASE("skill loader summarizes pre-installed and dynamic skills", "[embed_claw][core][skills]")
 {
     char summary[2048];
-    FILE *f;
 
     TEST_ASSERT_EQUAL(ESP_OK, ec_test_spiffs_mount());
 
-    remove_if_exists("/spiffs/skills/weather.md");
-    remove_if_exists("/spiffs/skills/daily-briefing.md");
-    remove_if_exists("/spiffs/skills/skill-creator.md");
-    remove_if_exists("/spiffs/skills/unit-test.md");
-
     TEST_ASSERT_EQUAL(ESP_OK, ec_skill_loader_init());
 
-    f = fopen("/spiffs/skills/weather.md", "r");
-    TEST_ASSERT_NOT_NULL(f);
-    fclose(f);
-
-    f = fopen("/spiffs/skills/daily-briefing.md", "r");
-    TEST_ASSERT_NOT_NULL(f);
-    fclose(f);
-
-    f = fopen("/spiffs/skills/skill-creator.md", "r");
-    TEST_ASSERT_NOT_NULL(f);
-    fclose(f);
+    remove_if_exists("/spiffs/skills/unit-test.md");
 
     write_text_file("/spiffs/skills/unit-test.md",
                     "# Unit Test Skill\n\nUsed for verifying summary output.\n");

@@ -23,6 +23,11 @@ void ec_tools_web_search_format_results_for_test(const char *response_json, char
 bool ec_tools_files_validate_path_for_test(const char *path);
 esp_err_t ec_tools_files_replace_first_for_test(const char *source, const char *old_str,
                                                 const char *new_str, char *output, size_t output_size);
+esp_err_t ec_tools_gpio_execute_for_test(const char *input_json, char *output, size_t output_size);
+void ec_tools_gpio_reset_for_test(void);
+void ec_tools_gpio_set_valid_output_for_test(int pin, bool valid);
+void ec_tools_gpio_set_driver_failures_for_test(esp_err_t config_err, esp_err_t set_err);
+int ec_tools_gpio_get_config_call_count_for_test(int pin);
 
 esp_err_t ec_channel_ws_parse_payload_for_test(int fd, const char *payload_json, ec_msg_t *msg);
 void ec_channel_ws_add_client_for_test(int fd, const char *chat_id);

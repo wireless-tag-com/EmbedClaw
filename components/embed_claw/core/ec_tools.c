@@ -108,6 +108,35 @@ const char *ec_tools_get_json(void)
     return s_tools_json;
 }
 
+size_t ec_tools_build_summary(char *buf, size_t size)
+{
+    size_t off = 0;
+
+    if (!buf || size == 0) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < _EC_TOOLS_ENMU_MAX && off < size - 1; i++) {
+        const char *name = NULL;
+        const char *description = NULL;
+
+        if (!s_tools[i]) {
+            continue;
+        }
+
+        name = s_tools[i]->name ? s_tools[i]->name : "(unnamed)";
+        description = s_tools[i]->description ? s_tools[i]->description : "";
+
+        off += snprintf(buf + off, size - off, "- %s: %s\n", name, description);
+        if (off >= size) {
+            off = size - 1;
+        }
+    }
+
+    buf[off] = '\0';
+    return off;
+}
+
 void ec_tools_free_json(void)
 {
     cJSON_free(s_tools_json);

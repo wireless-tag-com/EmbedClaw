@@ -197,6 +197,8 @@ static esp_err_t ec_llm_openai_chat_tools(ec_llm_provider_t *self, const char *s
     ESP_LOGI(TAG, "Calling LLM API with tools (model=%s, body=%u bytes)",
              self->instance.model, (unsigned)strlen(post_data));
 
+    ESP_LOGI(TAG, "LLM API request body: %s", post_data);
+
     resp_buf_t rb = {
         .data = calloc(1, EC_LLM_STREAM_BUF_SIZE),
         .len = 0,
@@ -258,6 +260,7 @@ static esp_err_t ec_llm_openai_chat_tools(ec_llm_provider_t *self, const char *s
         return ESP_FAIL;
     }
 
+    ESP_LOGI(TAG, "API response JSON: %s", rb.data);
     resp_buf_free(&rb);
 
     cJSON *choices = cJSON_GetObjectItem(root, "choices");
@@ -322,7 +325,7 @@ static esp_err_t ec_llm_openai_chat_tools(ec_llm_provider_t *self, const char *s
     }
 
     cJSON_Delete(root);
-
+    ESP_LOGI(TAG, "Response text: %s", resp->text ? resp->text : "");
     ESP_LOGI(TAG, "Response: %d bytes text, %d tool calls, stop=%s",
              (int)resp->text_len, resp->call_count,
              resp->tool_use ? "tool_use" : "end_turn");
@@ -525,46 +528,55 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
+static esp_http_client_handle_t s_llm_client = NULL;
+
 static esp_err_t llm_http(const char *post_data, resp_buf_t *rb, int *out_status)
 {
-    const char *cert_pem = select_server_ca_pem(s_provider.instance.url);
-    esp_http_client_config_t config = {
-        .url = s_provider.instance.url,
-        .method = HTTP_METHOD_POST,
-        .event_handler = http_event_handler,
-        .user_data = rb,
-        .timeout_ms = 120 * 1000,
-        .buffer_size = 4096,
-        .buffer_size_tx = 4096,
-        .transport_type = HTTP_TRANSPORT_OVER_SSL,
-    };
+    if (!s_llm_client) {
+        const char *cert_pem = select_server_ca_pem(s_provider.instance.url);
+        esp_http_client_config_t config = {
+            .url = s_provider.instance.url,
+            .method = HTTP_METHOD_POST,
+            .event_handler = http_event_handler,
+            .user_data = rb,
+            .timeout_ms = 120 * 1000,
+            .buffer_size = 4096,
+            .buffer_size_tx = 4096,
+            .transport_type = HTTP_TRANSPORT_OVER_SSL,
+            .keep_alive_enable = true,
+        };
 
-    if (cert_pem) {
-        config.cert_pem = cert_pem;
-        config.cert_len = 0;
-        ESP_LOGI(TAG, "Using pinned root CA for %s", s_provider.instance.url);
-    } else {
-        config.crt_bundle_attach = esp_crt_bundle_attach;
+        if (cert_pem) {
+            config.cert_pem = cert_pem;
+            config.cert_len = 0;
+            ESP_LOGI(TAG, "Using pinned root CA for %s", s_provider.instance.url);
+        } else {
+            config.crt_bundle_attach = esp_crt_bundle_attach;
+        }
+
+        s_llm_client = esp_http_client_init(&config);
+        if (!s_llm_client) {
+            return ESP_FAIL;
+        }
+
+        esp_http_client_set_header(s_llm_client, "Content-Type", "application/json; charset=utf-8");
+
+        char auth[EC_LLM_OPENAI_API_KEY_MAX_LEN + 16];
+        snprintf(auth, sizeof(auth), "Bearer %s", s_provider.instance.api_key);
+        esp_http_client_set_header(s_llm_client, "Authorization", auth);
     }
 
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (!client) {
-        return ESP_FAIL;
+    esp_http_client_set_user_data(s_llm_client, rb);
+    esp_http_client_set_post_field(s_llm_client, post_data, strlen(post_data));
+
+    esp_err_t err = esp_http_client_perform(s_llm_client);
+    *out_status = esp_http_client_get_status_code(s_llm_client);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "HTTP perform failed: %s, will reconnect next call", esp_err_to_name(err));
+        esp_http_client_cleanup(s_llm_client);
+        s_llm_client = NULL;
     }
-
-    esp_http_client_set_method(client, HTTP_METHOD_POST);
-    esp_http_client_set_header(client, "Content-Type", "application/json; charset=utf-8");
-
-    char auth[EC_LLM_OPENAI_API_KEY_MAX_LEN + 16];
-    snprintf(auth, sizeof(auth), "Bearer %s", s_provider.instance.api_key);
-    esp_http_client_set_header(client, "Authorization", auth);
-
-    esp_http_client_set_post_field(client, post_data, strlen(post_data));
-
-    esp_err_t err = esp_http_client_perform(client);
-    *out_status = esp_http_client_get_status_code(client);
-    esp_http_client_cleanup(client);
-
 
     return err;
 }

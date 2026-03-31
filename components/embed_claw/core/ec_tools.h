@@ -83,6 +83,15 @@ esp_err_t ec_tools_execute(const char *name, const char *input_json, char *outpu
 const char *ec_tools_get_json(void);
 
 /**
+ * @brief 构建所有已注册工具的摘要文本，用于 system prompt
+ *
+ * @param buf 输出缓冲区
+ * @param size 缓冲区大小
+ * @return size_t 写入的字节数
+ */
+size_t ec_tools_build_summary(char *buf, size_t size);
+
+/**
  * @brief 释放json中申请的字符串内存
  * 
  */
