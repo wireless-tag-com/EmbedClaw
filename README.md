@@ -203,23 +203,50 @@ Build-time configuration is layered:
 - [`components/embed_claw/ec_config_internal.h`](components/embed_claw/ec_config_internal.h) provides repo defaults and empty secret placeholders.
 - Create local [`main/ec_config.h`](main/ec_config.h) for project-specific overrides. Define only the macros you want to override. The build injects this header into `embed_claw`, so sensitive values do not need to live in the shared component tree.
 
-Create `main/ec_config.h` if needed, then set at least:
+Create `main/ec_config.h` if needed. The default preset is `Qwen`:
 
 ```c
+#define EC_USE_QWEN                1
+#define EC_USE_DEEPSEEK            0
+#define EC_USE_DOUBAO              0
+#define EC_USE_KIMI                0
+#define EC_USE_HUNYUAN             0
 #define EC_SECRET_SEARCH_KEY        "YOUR_TAVILY_API_KEY"
 #define EC_LLM_API_KEY              "YOUR_DASHSCOPE_API_KEY"
-#define EC_LLM_MODEL                "qwen-plus"
 #define EC_SECRET_FEISHU_APP_ID     "YOUR_FEISHU_APP_ID"
 #define EC_SECRET_FEISHU_APP_SECRET "YOUR_FEISHU_APP_SECRET"
 ```
 
-Default LLM URL (DashScope OpenAI-compatible):
+Under the default preset, the effective LLM settings are:
 
 ```c
-#define EC_LLM_API_URL "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#define EC_LLM_PROVIDER_NAME       "openai"
+#define EC_LLM_API_URL             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#define EC_LLM_MODEL               "qwen-plus"
 ```
 
-If you skip Tavily or Feishu for now, you only need the Qwen-related keys.
+Built-in OpenAI-compatible LLM presets now include:
+
+- `Qwen`: DashScope + `qwen-plus`
+- `DeepSeek`: `https://api.deepseek.com/v1/chat/completions` + `deepseek-chat`
+- `Doubao`: `https://operator.las.cn-beijing.volces.com/api/v1/chat/completions` + `doubao-seed-1-6-251015`
+- `KiMi`: `https://api.moonshot.cn/v1/chat/completions` + `kimi-k2.5`
+- `Hunyuan`: `https://api.hunyuan.cloud.tencent.com/v1/chat/completions` + `hunyuan-turbos-latest`
+
+If you want to switch to DeepSeek, use:
+
+```c
+#define EC_USE_QWEN                0
+#define EC_USE_DEEPSEEK            1
+#define EC_LLM_API_KEY              "YOUR_DEEPSEEK_API_KEY"
+```
+
+Notes:
+
+- Explicit `EC_LLM_PROVIDER_NAME / EC_LLM_API_URL / EC_LLM_MODEL` overrides take precedence over preset-derived defaults.
+- Only one `EC_USE_*` LLM preset can be `1` at a time.
+- The Doubao preset defaults to the Volcengine Beijing OpenAI-compatible endpoint; override `EC_LLM_API_URL` or `EC_DOUBAO_LLM_API_URL` if your region or endpoint differs.
+- If you skip Tavily or Feishu for now, you only need the keys for the active LLM preset.
 
 Optional channel toggles:
 
@@ -597,9 +624,11 @@ esp_err_t ec_channel_demo(void)
 
 Currently used:
 
+- `EC_USE_QWEN=1`
+- Other built-in OpenAI-compatible presets: `EC_USE_DEEPSEEK / EC_USE_DOUBAO / EC_USE_KIMI / EC_USE_HUNYUAN`
 - `EC_LLM_PROVIDER_NAME` (default: `openai`)
-- DashScope OpenAI-compatible API
-- **qwen-plus**
+- Qwen preset defaults to DashScope OpenAI-compatible + **qwen-plus**
+- The other presets reuse the same OpenAI-compatible provider
 
 To add another provider:
 
@@ -610,7 +639,7 @@ To add another provider:
 5. Add one branch in `ec_llm_init_default()` (`components/embed_claw/llm/ec_llm.c`) to map provider name to getter
 6. Set `EC_LLM_PROVIDER_NAME` in `main/ec_config.h` (and set matching URL/model)
 
-The current runtime path is OpenAI-compatible providers (OpenAI, DeepSeek, Moonshot, Qwen, etc.). Other provider families are not wired yet.
+The current runtime path is OpenAI-compatible providers (OpenAI, DeepSeek, Moonshot/KiMi, Qwen, Doubao, Hunyuan, etc.). Other provider families are not wired yet.
 
 ## Possible next steps
 
@@ -624,7 +653,7 @@ For open-source distribution, repo defaults keep secret fields empty. Put real k
 
 Before running, set:
 
-- DashScope / Qwen API key  
+- API key for the active LLM preset  
 - `EC_LLM_PROVIDER_NAME` (default is `openai`)
 - Tavily API key  
 - Feishu App ID and App Secret  

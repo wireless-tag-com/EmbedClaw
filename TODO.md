@@ -3,11 +3,10 @@
 ## LLM integration
 
 - [x] Qwen
-- [ ] XiaoZhi
-- [ ] DeepSeek
-- [ ] Doubao (ByteDance)
-- [ ] KiMi (Moonshot)
-- [ ] Hunyuan (Tencent)
+- [x] DeepSeek (OpenAI-compatible preset)
+- [x] Doubao (ByteDance, OpenAI-compatible preset)
+- [x] KiMi (Moonshot, OpenAI-compatible preset)
+- [x] Hunyuan (Tencent, OpenAI-compatible preset)
 
 ## Tools integration
 
@@ -35,4 +34,3 @@
 - [ ] Support more filesystems (beyond SPIFFS)
 - [ ] SD card support
 - [ ] Support ESP32C3
-

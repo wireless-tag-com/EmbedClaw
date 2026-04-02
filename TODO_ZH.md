@@ -3,11 +3,10 @@
 ## LLM对接
 
 - [x] 对接qwen
-- [ ] 对接小智
-- [ ] 对接deepseek
-- [ ] 对接豆包
-- [ ] 对接KiMi
-- [ ] 对接混元
+- [x] 对接deepseek（OpenAI-Compatible 预设）
+- [x] 对接豆包（OpenAI-Compatible 预设）
+- [x] 对接KiMi（OpenAI-Compatible 预设）
+- [x] 对接混元（OpenAI-Compatible 预设）
 
 ## Tools对接
 

@@ -72,12 +72,95 @@ extern "C" {
 /*
  * [embed_claw/llm]
  * 如何配置:
- * - 覆盖 provider 名称、API 地址、密钥、模型和响应缓冲参数。
+ * - 可通过预设宏快速切换 Qwen / DeepSeek / Doubao / KiMi / Hunyuan，
+ *   也可直接覆盖 provider 名称、
+ *   API 地址、密钥、模型和响应缓冲参数。
  * 作用:
  * - 影响 LLM provider 选择、接入目标、推理容量、内存占用和工具调用解析上限。
+ * 优先级:
+ * - 显式定义的 EC_LLM_PROVIDER_NAME / EC_LLM_API_URL / EC_LLM_MODEL
+ *   优先于预设宏推导值。
  */
+#ifndef EC_USE_DEEPSEEK
+#define EC_USE_DEEPSEEK            0
+#endif
+
+#ifndef EC_USE_DOUBAO
+#define EC_USE_DOUBAO              0
+#endif
+
+#ifndef EC_USE_KIMI
+#define EC_USE_KIMI                0
+#endif
+
+#ifndef EC_USE_HUNYUAN
+#define EC_USE_HUNYUAN             0
+#endif
+
+#ifndef EC_USE_QWEN
+#if EC_USE_DEEPSEEK || EC_USE_DOUBAO || EC_USE_KIMI || EC_USE_HUNYUAN
+#define EC_USE_QWEN                0
+#else
+#define EC_USE_QWEN                1
+#endif
+#endif
+
+#if (EC_USE_QWEN + EC_USE_DEEPSEEK + EC_USE_DOUBAO + EC_USE_KIMI + EC_USE_HUNYUAN) > 1
+#error "Only one EC_USE_* LLM preset can be 1 at a time"
+#endif
+
+#ifndef EC_QWEN_LLM_API_URL
+#define EC_QWEN_LLM_API_URL        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#endif
+
+#ifndef EC_QWEN_LLM_MODEL
+#define EC_QWEN_LLM_MODEL          "qwen-plus"
+#endif
+
+#ifndef EC_DEEPSEEK_LLM_API_URL
+#define EC_DEEPSEEK_LLM_API_URL    "https://api.deepseek.com/v1/chat/completions"
+#endif
+
+#ifndef EC_DEEPSEEK_LLM_MODEL
+#define EC_DEEPSEEK_LLM_MODEL      "deepseek-chat"
+#endif
+
+#ifndef EC_DOUBAO_LLM_API_URL
+#define EC_DOUBAO_LLM_API_URL      "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+#endif
+
+#ifndef EC_DOUBAO_LLM_MODEL
+#define EC_DOUBAO_LLM_MODEL        "doubao-seed-2-0-pro-260215"
+#endif
+
+#ifndef EC_KIMI_LLM_API_URL
+#define EC_KIMI_LLM_API_URL        "https://api.moonshot.cn/v1/chat/completions"
+#endif
+
+#ifndef EC_KIMI_LLM_MODEL
+#define EC_KIMI_LLM_MODEL          "kimi-k2.5"
+#endif
+
+#ifndef EC_HUNYUAN_LLM_API_URL
+#define EC_HUNYUAN_LLM_API_URL     "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
+#endif
+
+#ifndef EC_HUNYUAN_LLM_MODEL
+#define EC_HUNYUAN_LLM_MODEL       "hunyuan-turbos-latest"
+#endif
+
 #ifndef EC_LLM_API_URL
-#define EC_LLM_API_URL              "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#if EC_USE_DEEPSEEK
+#define EC_LLM_API_URL             EC_DEEPSEEK_LLM_API_URL
+#elif EC_USE_DOUBAO
+#define EC_LLM_API_URL             EC_DOUBAO_LLM_API_URL
+#elif EC_USE_KIMI
+#define EC_LLM_API_URL             EC_KIMI_LLM_API_URL
+#elif EC_USE_HUNYUAN
+#define EC_LLM_API_URL             EC_HUNYUAN_LLM_API_URL
+#else
+#define EC_LLM_API_URL             EC_QWEN_LLM_API_URL
+#endif
 #endif
 
 #ifndef EC_LLM_API_KEY
@@ -85,7 +168,17 @@ extern "C" {
 #endif
 
 #ifndef EC_LLM_MODEL
-#define EC_LLM_MODEL                "qwen-plus"
+#if EC_USE_DEEPSEEK
+#define EC_LLM_MODEL               EC_DEEPSEEK_LLM_MODEL
+#elif EC_USE_DOUBAO
+#define EC_LLM_MODEL               EC_DOUBAO_LLM_MODEL
+#elif EC_USE_KIMI
+#define EC_LLM_MODEL               EC_KIMI_LLM_MODEL
+#elif EC_USE_HUNYUAN
+#define EC_LLM_MODEL               EC_HUNYUAN_LLM_MODEL
+#else
+#define EC_LLM_MODEL               EC_QWEN_LLM_MODEL
+#endif
 #endif
 
 #ifndef EC_LLM_PROVIDER_NAME

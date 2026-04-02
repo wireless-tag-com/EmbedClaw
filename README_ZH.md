@@ -202,23 +202,50 @@ EmbedClaw 使用 SPIFFS 保存人格、用户信息、会话与记忆：
 - [`components/embed_claw/ec_config_internal.h`](components/embed_claw/ec_config_internal.h) 提供仓库内默认值和空白密钥占位。
 - 如需放项目自己的参数或敏感信息，请新建本地 [`main/ec_config.h`](main/ec_config.h)，只定义你要覆盖的宏。构建系统会把这个头自动注入 `embed_claw`，因此不必把密钥写回共享组件目录。
 
-如不存在可先创建 `main/ec_config.h`，你至少需要填写：
+如不存在可先创建 `main/ec_config.h`。默认预设是 `Qwen`：
 
 ```c
+#define EC_USE_QWEN                1
+#define EC_USE_DEEPSEEK            0
+#define EC_USE_DOUBAO              0
+#define EC_USE_KIMI                0
+#define EC_USE_HUNYUAN             0
 #define EC_SECRET_SEARCH_KEY        "YOUR_TAVILY_API_KEY"
 #define EC_LLM_API_KEY              "YOUR_DASHSCOPE_API_KEY"
-#define EC_LLM_MODEL                "qwen-plus"
 #define EC_SECRET_FEISHU_APP_ID     "YOUR_FEISHU_APP_ID"
 #define EC_SECRET_FEISHU_APP_SECRET "YOUR_FEISHU_APP_SECRET"
 ```
 
-默认的 LLM 地址已经指向 DashScope OpenAI-Compatible 接口：
+在默认预设下，LLM 会自动落到：
 
 ```c
-#define EC_LLM_API_URL "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#define EC_LLM_PROVIDER_NAME       "openai"
+#define EC_LLM_API_URL             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+#define EC_LLM_MODEL               "qwen-plus"
 ```
 
-如果你暂时不用 Tavily 或飞书，可以只配置 Qwen 所需参数。
+当前内置的 OpenAI-Compatible LLM 预设有：
+
+- `Qwen`：DashScope + `qwen-plus`
+- `DeepSeek`：`https://api.deepseek.com/v1/chat/completions` + `deepseek-chat`
+- `Doubao`：`https://operator.las.cn-beijing.volces.com/api/v1/chat/completions` + `doubao-seed-1-6-251015`
+- `KiMi`：`https://api.moonshot.cn/v1/chat/completions` + `kimi-k2.5`
+- `Hunyuan`：`https://api.hunyuan.cloud.tencent.com/v1/chat/completions` + `hunyuan-turbos-latest`
+
+如果你想切到 DeepSeek，可在本地配置里改成：
+
+```c
+#define EC_USE_QWEN                0
+#define EC_USE_DEEPSEEK            1
+#define EC_LLM_API_KEY              "YOUR_DEEPSEEK_API_KEY"
+```
+
+说明：
+
+- 显式定义的 `EC_LLM_PROVIDER_NAME / EC_LLM_API_URL / EC_LLM_MODEL` 优先级高于预设宏。
+- 同一时刻只能有一个 `EC_USE_*` LLM 预设为 `1`。
+- Doubao 预设默认使用火山引擎北京区 OpenAI-Compatible endpoint；如果你的地域或接入点不同，请显式覆盖 `EC_LLM_API_URL` 或 `EC_DOUBAO_LLM_API_URL`。
+- 如果你暂时不用 Tavily 或飞书，可以只配置当前 LLM 预设所需参数。
 
 可选的 channel 开关示例：
 
@@ -628,9 +655,11 @@ esp_err_t ec_channel_demo(void)
 
 当前默认实际启用的是：
 
+- `EC_USE_QWEN=1`
+- 其它内置 OpenAI-Compatible 预设：`EC_USE_DEEPSEEK / EC_USE_DOUBAO / EC_USE_KIMI / EC_USE_HUNYUAN`
 - `EC_LLM_PROVIDER_NAME`（默认：`openai`）
-- DashScope OpenAI-Compatible 接口
-- `qwen-plus`
+- Qwen 预设默认落到 DashScope OpenAI-Compatible + `qwen-plus`
+- 其它预设同样复用这套 OpenAI-Compatible provider
 
 但抽象层已经拆出来了，扩展新 Provider 的路径很清晰：
 
@@ -644,7 +673,7 @@ esp_err_t ec_channel_demo(void)
 补充说明：
 
 - 但现阶段真正跑通的是 OpenAI-Compatible 路径
-- 所以如果你要接 OpenAI、DeepSeek、Moonshot、通义千问兼容接口，成本会最低
+- 所以如果你要接 OpenAI、DeepSeek、Moonshot/KiMi、通义千问、豆包或混元的兼容接口，成本会最低
 
 ## 适合继续演进的方向
 
@@ -658,7 +687,7 @@ esp_err_t ec_channel_demo(void)
 
 在正式运行前，请先填写：
 
-- DashScope / Qwen API Key
+- 当前预设对应的 LLM API Key
 - `EC_LLM_PROVIDER_NAME`（默认是 `openai`）
 - Tavily API Key
 - Feishu App ID / Secret
